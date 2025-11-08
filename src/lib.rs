@@ -14,23 +14,31 @@ use core::{
   cmp::Ordering,
   fmt,
   hash::{Hash, Hasher},
-  iter::{repeat_n, repeat_with},
+  iter::{Chain, Once, once, repeat_n, repeat_with},
   mem::{self, ManuallyDrop, MaybeUninit},
-  ops::{Index, IndexMut, Range},
+  ops::{self, Index, IndexMut, Range, RangeBounds},
   ptr, slice,
 };
 use generic_array::GenericArray;
 
+pub use extract_if::ExtractIf;
 pub use generic_array::{ArrayLength, typenum};
 pub use into_iter::IntoIter;
 pub use iter::Iter;
 pub use iter_mut::IterMut;
 
+mod drain;
+mod extract_if;
 mod into_iter;
+#[cfg(feature = "std")]
+mod io;
 mod iter;
 mod iter_mut;
 
-pub struct GenericArrayVecDeque<T, N>
+#[cfg(test)]
+mod tests;
+
+pub struct GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
@@ -39,7 +47,7 @@ where
   len: usize,
 }
 
-impl<T, N> Clone for GenericArrayVecDeque<T, N>
+impl<T, N> Clone for GenericArrayDeque<T, N>
 where
   T: Clone,
   N: ArrayLength,
@@ -59,7 +67,7 @@ where
   }
 }
 
-impl<T, N> Default for GenericArrayVecDeque<T, N>
+impl<T, N> Default for GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
@@ -69,14 +77,14 @@ where
   }
 }
 
-impl<T: fmt::Debug, N: ArrayLength> fmt::Debug for GenericArrayVecDeque<T, N> {
+impl<T: fmt::Debug, N: ArrayLength> fmt::Debug for GenericArrayDeque<T, N> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.debug_list().entries(self.iter()).finish()
   }
 }
 
-impl<T: PartialEq, N: ArrayLength> PartialEq for GenericArrayVecDeque<T, N> {
-  fn eq(&self, other: &Self) -> bool {
+impl<T: PartialEq, N1: ArrayLength, N2: ArrayLength> PartialEq<GenericArrayDeque<T, N2>> for GenericArrayDeque<T, N1> {
+  fn eq(&self, other: &GenericArrayDeque<T, N2>) -> bool {
     if self.len != other.len() {
       return false;
     }
@@ -113,7 +121,7 @@ impl<T: PartialEq, N: ArrayLength> PartialEq for GenericArrayVecDeque<T, N> {
   }
 }
 
-impl<T: Eq, N: ArrayLength> Eq for GenericArrayVecDeque<T, N> {}
+impl<T: Eq, N: ArrayLength> Eq for GenericArrayDeque<T, N> {}
 
 macro_rules! __impl_slice_eq1 {
     ([$($vars:tt)*] $lhs:ty, $rhs:ty, $($constraints:tt)*) => {
@@ -134,27 +142,27 @@ macro_rules! __impl_slice_eq1 {
     }
 }
 #[cfg(any(feature = "std", feature = "alloc"))]
-__impl_slice_eq1! { [] GenericArrayVecDeque<T, L>, std::vec::Vec<U>, }
-__impl_slice_eq1! { [] GenericArrayVecDeque<T, L>, &[U], }
-__impl_slice_eq1! { [] GenericArrayVecDeque<T, L>, &mut [U], }
-__impl_slice_eq1! { [const N: usize] GenericArrayVecDeque<T, L>, [U; N], }
-__impl_slice_eq1! { [const N: usize] GenericArrayVecDeque<T, L>, &[U; N], }
-__impl_slice_eq1! { [const N: usize] GenericArrayVecDeque<T, L>, &mut [U; N], }
+__impl_slice_eq1! { [] GenericArrayDeque<T, L>, std::vec::Vec<U>, }
+__impl_slice_eq1! { [] GenericArrayDeque<T, L>, &[U], }
+__impl_slice_eq1! { [] GenericArrayDeque<T, L>, &mut [U], }
+__impl_slice_eq1! { [const N: usize] GenericArrayDeque<T, L>, [U; N], }
+__impl_slice_eq1! { [const N: usize] GenericArrayDeque<T, L>, &[U; N], }
+__impl_slice_eq1! { [const N: usize] GenericArrayDeque<T, L>, &mut [U; N], }
 
-impl<T: PartialOrd, N: ArrayLength> PartialOrd for GenericArrayVecDeque<T, N> {
+impl<T: PartialOrd, N: ArrayLength> PartialOrd for GenericArrayDeque<T, N> {
   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
     self.iter().partial_cmp(other.iter())
   }
 }
 
-impl<T: Ord, N: ArrayLength> Ord for GenericArrayVecDeque<T, N> {
+impl<T: Ord, N: ArrayLength> Ord for GenericArrayDeque<T, N> {
   #[inline]
   fn cmp(&self, other: &Self) -> Ordering {
     self.iter().cmp(other.iter())
   }
 }
 
-impl<T: Hash, N: ArrayLength> Hash for GenericArrayVecDeque<T, N> {
+impl<T: Hash, N: ArrayLength> Hash for GenericArrayDeque<T, N> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     state.write_usize(self.len);
     // It's not possible to use Hash::hash_slice on slices
@@ -167,7 +175,7 @@ impl<T: Hash, N: ArrayLength> Hash for GenericArrayVecDeque<T, N> {
   }
 }
 
-impl<T, N: ArrayLength> Index<usize> for GenericArrayVecDeque<T, N> {
+impl<T, N: ArrayLength> Index<usize> for GenericArrayDeque<T, N> {
   type Output = T;
 
   #[inline]
@@ -176,14 +184,14 @@ impl<T, N: ArrayLength> Index<usize> for GenericArrayVecDeque<T, N> {
   }
 }
 
-impl<T, N: ArrayLength> IndexMut<usize> for GenericArrayVecDeque<T, N> {
+impl<T, N: ArrayLength> IndexMut<usize> for GenericArrayDeque<T, N> {
   #[inline]
   fn index_mut(&mut self, index: usize) -> &mut T {
     self.get_mut(index).expect("Out of bounds access")
   }
 }
 
-impl<T, N: ArrayLength> IntoIterator for GenericArrayVecDeque<T, N> {
+impl<T, N: ArrayLength> IntoIterator for GenericArrayDeque<T, N> {
   type Item = T;
   type IntoIter = IntoIter<T, N>;
 
@@ -194,7 +202,7 @@ impl<T, N: ArrayLength> IntoIterator for GenericArrayVecDeque<T, N> {
   }
 }
 
-impl<'a, T, N: ArrayLength> IntoIterator for &'a GenericArrayVecDeque<T, N> {
+impl<'a, T, N: ArrayLength> IntoIterator for &'a GenericArrayDeque<T, N> {
   type Item = &'a T;
   type IntoIter = Iter<'a, T>;
 
@@ -203,7 +211,7 @@ impl<'a, T, N: ArrayLength> IntoIterator for &'a GenericArrayVecDeque<T, N> {
   }
 }
 
-impl<'a, T, N: ArrayLength> IntoIterator for &'a mut GenericArrayVecDeque<T, N> {
+impl<'a, T, N: ArrayLength> IntoIterator for &'a mut GenericArrayDeque<T, N> {
   type Item = &'a mut T;
   type IntoIter = IterMut<'a, T>;
 
@@ -212,7 +220,16 @@ impl<'a, T, N: ArrayLength> IntoIterator for &'a mut GenericArrayVecDeque<T, N> 
   }
 }
 
-impl<T, N: ArrayLength> From<GenericArray<T, N>> for GenericArrayVecDeque<T, N> {
+impl<T, N: ArrayLength, const SIZE: usize> TryFrom<[T; SIZE]> for GenericArrayDeque<T, N> {
+  type Error = [T; SIZE];
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_from(arr: [T; SIZE]) -> Result<Self, Self::Error> {
+    Self::try_from_array(arr)
+  }
+}
+
+impl<T, N: ArrayLength> From<GenericArray<T, N>> for GenericArrayDeque<T, N> {
   fn from(arr: GenericArray<T, N>) -> Self {
     let mut deq = Self::new();
     let arr = ManuallyDrop::new(arr);
@@ -227,6 +244,64 @@ impl<T, N: ArrayLength> From<GenericArray<T, N>> for GenericArrayVecDeque<T, N> 
     deq
   }
 }
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+const _: () = {
+  use std::vec::Vec;
+
+  impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
+    /// Tries to create a deque from a vector.
+    ///
+    /// If the vector contains more elements than the capacity of the deque,
+    /// the vector will be returned as an `Err` value.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U4}};
+    ///
+    /// let deque = GenericArrayDeque::<u32, U4>::try_from_vec(vec![1, 2]).unwrap();
+    /// assert_eq!(deque.len(), 2);
+    ///
+    /// let result = GenericArrayDeque::<u32, U2>::try_from_vec(vec![1, 2, 3]);
+    /// assert!(result.is_err());
+    /// ```
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+    pub fn try_from_vec(vec: Vec<T>) -> Result<Self, Vec<T>> {
+      if vec.len() > N::USIZE {
+        return Err(vec);
+      }
+      let mut deq = Self::new();
+      // SAFETY: We have already checked that the length of the vec is less than or equal to the capacity of the deque.
+      unsafe {
+        ptr::copy_nonoverlapping(vec.as_ptr(), deq.ptr_mut() as _, vec.len());
+      }
+      deq.len = vec.len();
+      Ok(deq)
+    }
+  }
+
+  impl<T, N: ArrayLength> TryFrom<Vec<T>> for GenericArrayDeque<T, N> {
+    type Error = Vec<T>;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn try_from(vec: Vec<T>) -> Result<Self, Self::Error> {
+      Self::try_from_vec(vec)
+    }
+  }
+
+  impl<T, N: ArrayLength> From<GenericArrayDeque<T, N>> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn from(deq: GenericArrayDeque<T, N>) -> Self {
+      let mut vec = Vec::with_capacity(deq.len());
+      for item in deq.into_iter() {
+        vec.push(item);
+      }
+      vec
+    }
+  }
+};
 
 macro_rules! insert {
   ($this:ident($index:ident, $value:ident)) => {{
@@ -257,7 +332,7 @@ macro_rules! insert {
   }};
 }
 
-impl<T, N> GenericArrayVecDeque<T, N>
+impl<T, N> GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
@@ -266,9 +341,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let deque: GenericArrayVecDeque<u32, U8> = GenericArrayVecDeque::new();
+  /// let deque: GenericArrayDeque<u32, U8> = GenericArrayDeque::new();
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new() -> Self {
@@ -286,7 +361,20 @@ where
   ///
   /// See also [`try_from_exact_iter`] which requires the iterator to yield exactly
   /// the same number of elements as the capacity of the deque.
-  pub fn try_from_iter<I: IntoIterator<Item = T>>(iter: I) -> Result<Self, I::IntoIter> {
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U4}};
+  ///
+  /// let deque = GenericArrayDeque::<u32, U4>::try_from_iter([10, 20, 30]).unwrap();
+  /// assert_eq!(deque.len(), 3);
+  ///
+  /// let result = GenericArrayDeque::<u32, U2>::try_from_iter(0..5);
+  /// assert!(result.is_err());
+  /// ```
+  #[allow(clippy::type_complexity)]
+  pub fn try_from_iter<I: IntoIterator<Item = T>>(iter: I) -> Result<Self, (Self, Chain<Once<T>, I::IntoIter>)> {
     let mut deq = Self::new();
     let mut iterator = iter.into_iter();
     for idx in 0..N::USIZE {
@@ -298,13 +386,49 @@ where
         None => return Ok(deq),
       }
     }
-    Err(iterator)
+
+    match iterator.next() {
+      None => Ok(deq),
+      Some(value) => Err((deq, once(value).chain(iterator))),
+    }
   }
 
-  /// Tries to create a deque from an iterator.
+  /// Tries to extend the deque from an iterator.
+  pub fn try_extend_from_iter<I: IntoIterator<Item = T>>(
+    &mut self,
+    iter: I,
+  ) -> Option<Chain<Once<T>, I::IntoIter>> {
+    let mut iterator = iter.into_iter();
+    for idx in self.len..N::USIZE {
+      match iterator.next() {
+        Some(value) => {
+          let idx = self.to_physical_idx(idx);
+          self.array[idx].write(value);
+          self.len += 1;
+        }
+        None => return None,
+      }
+    }
+
+    iterator.next().map(|value| once(value).chain(iterator))
+  }
+
+  /// Tries to create a deque from an iterator that knows its exact length.
   ///
-  /// If the iterator does not yield exactly the same number of elements
-  /// as the capacity of the deque, the iterator will be returned as an `Err` value.
+  /// If the iterator reports a length greater than the deque's capacity,
+  /// the iterator will be returned as an `Err` value.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U4}};
+  ///
+  /// let deque = GenericArrayDeque::<u32, U4>::try_from_exact_iter(0..4).unwrap();
+  /// assert_eq!(deque.len(), 4);
+  ///
+  /// let result = GenericArrayDeque::<u32, U4>::try_from_exact_iter(0..5);
+  /// assert!(result.is_err());
+  /// ```
   pub fn try_from_exact_iter<I>(iter: I) -> Result<Self, I::IntoIter>
   where
     I: IntoIterator<Item = T>,
@@ -323,10 +447,38 @@ where
     Ok(deq)
   }
 
+  /// Tries to extend the deque from an iterator that knows its exact length.
+  pub fn try_extend_from_exact_iter<I>(&mut self, iter: I) -> Option<I::IntoIter>
+  where
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+  {
+    let iter = iter.into_iter();
+    if iter.len() > self.remaining_capacity() {
+      return Some(iter);
+    }
+
+    for value in iter {
+      let idx = self.to_physical_idx(self.len);
+      self.array[idx].write(value);
+      self.len += 1;
+    }
+    None
+  }
+
   /// Creates a deque from an iterator without checking the number of elements and capacity of the deque.
   ///
   /// ## Safety
   /// - The iterator must yield at most `N::USIZE` elements.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U4}};
+  ///
+  /// let deque = unsafe { GenericArrayDeque::<u32, U4>::from_iter_unchecked(7..10) };
+  /// assert_eq!(deque.len(), 3);
+  /// ```
   pub unsafe fn from_iter_unchecked<I: IntoIterator<Item = T>>(iter: I) -> Self {
     let mut deq = Self::new();
     let mut iterator = iter.into_iter();
@@ -340,25 +492,6 @@ where
       }
     }
     deq
-  }
-
-  /// Tries to create a deque from a vector.
-  ///
-  /// If the vector contains more elements than the capacity of the deque,
-  /// the vector will be returned as an `Err` value.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  pub fn try_from_vec(vec: Vec<T>) -> Result<Self, std::vec::Vec<T>> {
-    if vec.len() > N::USIZE {
-      return Err(vec);
-    }
-    let mut deq = Self::new();
-    // SAFETY: We have already checked that the length of the vec is less than or equal to the capacity of the deque.
-    unsafe {
-      ptr::copy_nonoverlapping(vec.as_ptr(), deq.ptr_mut() as _, vec.len());
-    }
-    deq.len = vec.len();
-    Ok(deq)
   }
 
   /// Tries to create a deque from an array.
@@ -383,9 +516,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let deque: GenericArrayVecDeque<u32, U8> = GenericArrayVecDeque::new();
+  /// let deque: GenericArrayDeque<u32, U8> = GenericArrayDeque::new();
   /// assert_eq!(deque.capacity(), 8);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -398,9 +531,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut deque = GenericArrayDeque::<u32, U8>::new();
   /// assert_eq!(deque.len(), 0);
   /// deque.push_back(1);
   /// assert_eq!(deque.len(), 1);
@@ -410,14 +543,32 @@ where
     self.len
   }
 
+  /// Returns how many more elements the deque can store without reallocating.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  ///
+  /// let mut deque = GenericArrayDeque::<u32, U4>::new();
+  /// assert_eq!(deque.remaining_capacity(), 4);
+  /// assert!(deque.push_back(10).is_none());
+  /// assert_eq!(deque.remaining_capacity(), 3);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn remaining_capacity(&self) -> usize {
+    debug_assert!(self.len <= self.capacity());
+    self.capacity() - self.len
+  }
+
   /// Returns `true` if the deque is empty.
   ///
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut deque = GenericArrayDeque::<u32, U8>::new();
   /// assert!(deque.is_empty());
   /// deque.push_front(1);
   /// assert!(!deque.is_empty());
@@ -432,13 +583,13 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U2};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U2> = GenericArrayVecDeque::new();
+  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
   /// assert!(!deque.is_full());
-  /// deque.push_back(10).unwrap();
+  /// assert!(deque.push_back(10).is_none());
   /// assert!(!deque.is_full());
-  /// deque.push_back(20).unwrap();
+  /// assert!(deque.push_back(20).is_none());
   /// assert!(deque.is_full());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -446,20 +597,93 @@ where
     self.len == self.capacity()
   }
 
-  /// Returns a front-to-back iterator.
+  /// Creates an iterator that covers the specified range in the deque.
   ///
-  /// # Examples
+  /// ## Panics
+  ///
+  /// Panics if the range has `start_bound > end_bound`, or, if the range is
+  /// bounded on either end and past the length of the deque.
+  ///
+  /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_back(5);
-  /// buf.push_back(3);
-  /// buf.push_back(4);
-  /// let b: &[_] = &[&5, &3, &4];
-  /// let c: Vec<&i32> = buf.iter().collect();
-  /// assert_eq!(&c[..], b);
+  /// let deque: GenericArrayDeque<_, U4> = [1, 2, 3].try_into().unwrap();
+  /// let range: GenericArrayDeque<_, U4> = GenericArrayDeque::try_from_iter(deque.range(2..).copied()).unwrap();
+  /// assert_eq!(range, [3]);
+  ///
+  /// // A full range covers all contents
+  /// let all = deque.range(..);
+  /// assert_eq!(all.len(), 3);
+  /// ```
+  #[inline]
+  pub fn range<R>(&self, range: R) -> Iter<'_, T>
+  where
+    R: RangeBounds<usize>,
+  {
+    let (a_range, b_range) = self.slice_ranges(range, self.len);
+    // SAFETY: The ranges returned by `slice_ranges`
+    // are valid ranges into the physical buffer, so
+    // it's ok to pass them to `buffer_range` and
+    // dereference the result.
+    let a = unsafe { &*self.buffer_range(a_range) };
+    let b = unsafe { &*self.buffer_range(b_range) };
+    Iter::new(a.iter(), b.iter())
+  }
+
+  /// Creates an iterator that covers the specified mutable range in the deque.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if the range has `start_bound > end_bound`, or, if the range is
+  /// bounded on either end and past the length of the deque.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  ///
+  /// let mut deque: GenericArrayDeque<_, U4> = [1, 2, 3].try_into().unwrap();
+  /// for v in deque.range_mut(2..) {
+  ///   *v *= 2;
+  /// }
+  /// assert_eq!(deque, [1, 2, 6]);
+  ///
+  /// // A full range covers all contents
+  /// for v in deque.range_mut(..) {
+  ///   *v *= 2;
+  /// }
+  /// assert_eq!(deque, [2, 4, 12]);
+  /// ```
+  #[inline]
+  pub fn range_mut<R>(&mut self, range: R) -> IterMut<'_, T>
+  where
+    R: RangeBounds<usize>,
+  {
+    let (a_range, b_range) = self.slice_ranges(range, self.len);
+    // SAFETY: The ranges returned by `slice_ranges`
+    // are valid ranges into the physical buffer, so
+    // it's ok to pass them to `buffer_range` and
+    // dereference the result.
+    let a = unsafe { &mut *self.buffer_range_mut(a_range) };
+    let b = unsafe { &mut *self.buffer_range_mut(b_range) };
+    IterMut::new(a.iter_mut(), b.iter_mut())
+  }
+
+  /// Returns a front-to-back iterator.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  ///
+  /// let mut buf = GenericArrayDeque::<i32, U4>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(3).is_none());
+  /// assert!(buf.push_back(4).is_none());
+  /// let collected: Vec<&i32> = buf.iter().collect();
+  /// assert_eq!(collected, vec![&5, &3, &4]);
   /// ```
   pub fn iter(&self) -> Iter<'_, T> {
     let (a, b) = self.as_slices();
@@ -468,24 +692,139 @@ where
 
   /// Returns a front-to-back iterator that returns mutable references.
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_back(5);
-  /// buf.push_back(3);
-  /// buf.push_back(4);
-  /// for num in buf.iter_mut() {
-  ///     *num = *num - 2;
+  /// let mut buf = GenericArrayDeque::<i32, U4>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(3).is_none());
+  /// assert!(buf.push_back(4).is_none());
+  /// for value in buf.iter_mut() {
+  ///     *value -= 2;
   /// }
-  /// let b: &[_] = &[&mut 3, &mut 1, &mut 2];
-  /// assert_eq!(&buf.iter_mut().collect::<Vec<&mut i32>>()[..], b);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![3, 1, 2]);
   /// ```
   pub fn iter_mut(&mut self) -> IterMut<'_, T> {
     let (a, b) = self.as_mut_slices();
     IterMut::new(a.iter_mut(), b.iter_mut())
+  }
+
+  /// Splits the deque into two at the given index.
+  ///
+  /// Returns a newly allocated `VecDeque`. `self` contains elements `[0, at)`,
+  /// and the returned deque contains elements `[at, len)`.
+  ///
+  /// Note that the capacity of `self` does not change.
+  ///
+  /// Element at index 0 is the front of the queue.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `at > len`.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  ///
+  /// let mut buf: GenericArrayDeque<_, U4> = ['a', 'b', 'c'].try_into().unwrap();
+  /// let buf2 = buf.split_off(1);
+  /// assert_eq!(buf, ['a']);
+  /// assert_eq!(buf2, ['b', 'c']);
+  /// ```
+  #[inline]
+  #[must_use = "use `.truncate()` if you don't need the other half"]
+  pub fn split_off(&mut self, at: usize) -> Self {
+    let len = self.len;
+    assert!(at <= len, "`at` out of bounds");
+
+    let other_len = len - at;
+    let mut other = Self::new();
+
+    unsafe {
+      let (first_half, second_half) = self.as_slices();
+
+      let first_len = first_half.len();
+      let second_len = second_half.len();
+      if at < first_len {
+        // `at` lies in the first half.
+        let amount_in_first = first_len - at;
+
+        ptr::copy_nonoverlapping(
+          first_half.as_ptr().add(at),
+          other.ptr_mut() as _,
+          amount_in_first,
+        );
+
+        // just take all of the second half.
+        ptr::copy_nonoverlapping(
+          second_half.as_ptr(),
+          other.ptr_mut().add(amount_in_first) as _,
+          second_len,
+        );
+      } else {
+        // `at` lies in the second half, need to factor in the elements we skipped
+        // in the first half.
+        let offset = at - first_len;
+        let amount_in_second = second_len - offset;
+        ptr::copy_nonoverlapping(
+          second_half.as_ptr().add(offset),
+          other.ptr_mut() as _,
+          amount_in_second,
+        );
+      }
+    }
+
+    // Cleanup where the ends of the buffers are
+    self.len = at;
+    other.len = other_len;
+
+    other
+  }
+
+  /// Moves all the elements of `other` into `self`, leaving `other` empty.
+  ///
+  /// This operation is no-op if the combined length of both deques exceeds the capacity of `self`.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  ///
+  /// let mut buf: GenericArrayDeque<_, U4> = [1, 2].try_into().unwrap();
+  /// let mut buf2: GenericArrayDeque<_, U4> = [3, 4].try_into().unwrap();
+  /// assert!(buf.append(&mut buf2));
+  /// assert_eq!(buf, [1, 2, 3, 4]);
+  /// assert_eq!(buf2, []);
+  /// ```
+  #[inline]
+  pub const fn append(&mut self, other: &mut Self) -> bool {
+    if self.len + other.len > self.capacity() {
+      return false;
+    }
+
+    if mem::size_of::<T>() == 0 {
+      self.len = self.len.checked_add(other.len).expect("capacity overflow");
+      other.len = 0;
+      other.head = 0;
+      return true;
+    }
+
+    unsafe {
+      let (left, right) = other.as_slices();
+      self.copy_slice(self.to_physical_idx(self.len), left);
+      // no overflow, because self.capacity() >= old_cap + left.len() >= self.len + left.len()
+      self.copy_slice(self.to_physical_idx(self.len + left.len()), right);
+    }
+    // SAFETY: Update pointers after copying to avoid leaving doppelganger
+    // in case of panics.
+    self.len += other.len;
+    // Now that we own its values, forget everything in `other`.
+    other.len = 0;
+    other.head = 0;
+    true
   }
 
   /// Returns a pair of slices which contain, in order, the contents of the
@@ -496,14 +835,14 @@ where
   /// Otherwise, the exact split point depends on implementation details
   /// and is not guaranteed.
   ///
-  /// [`make_contiguous`]: VecDeque::make_contiguous
+  /// [`make_contiguous`]: GenericArrayDeque::make_contiguous
   ///
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut deque = GenericArrayDeque::<u32, U8>::new();
   ///
   /// deque.push_back(0);
   /// deque.push_back(1);
@@ -538,14 +877,14 @@ where
   /// Otherwise, the exact split point depends on implementation details
   /// and is not guaranteed.
   ///
-  /// [`make_contiguous`]: VecDeque::make_contiguous
+  /// [`make_contiguous`]: GenericArrayDeque::make_contiguous
   ///
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut deque = GenericArrayDeque::<u32, U8>::new();
   ///
   /// deque.push_back(0);
   /// deque.push_back(1);
@@ -567,7 +906,7 @@ where
   /// update_nth(0, 42);
   /// update_nth(2, 24);
   ///
-  /// let v: Vec<_> = deque.into();
+  /// let v: Vec<_> = deque.into_iter().collect();
   /// assert_eq!(v, [42, 10, 24, 1]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -589,9 +928,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut d = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut d = GenericArrayDeque::<u32, U8>::new();
   /// assert_eq!(d.front(), None);
   ///
   /// d.push_back(1);
@@ -609,9 +948,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut d = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut d = GenericArrayDeque::<u32, U8>::new();
   /// assert_eq!(d.front_mut(), None);
   ///
   /// d.push_back(1);
@@ -633,9 +972,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut d = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut d = GenericArrayDeque::<u32, U8>::new();
   /// assert_eq!(d.back(), None);
   ///
   /// d.push_back(1);
@@ -653,9 +992,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut d = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut d = GenericArrayDeque::<u32, U8>::new();
   /// assert_eq!(d.back(), None);
   ///
   /// d.push_back(1);
@@ -678,11 +1017,11 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U8> = GenericArrayVecDeque::new();
-  /// deque.push_back(10).unwrap();
-  /// deque.push_back(20).unwrap();
+  /// let mut deque: GenericArrayDeque<u32, U8> = GenericArrayDeque::new();
+  /// assert!(deque.push_back(10).is_none());
+  /// assert!(deque.push_back(20).is_none());
   /// assert_eq!(*deque.get(0).unwrap(), 10);
   /// assert_eq!(*deque.get(1).unwrap(), 20);
   /// ```
@@ -704,11 +1043,11 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U8> = GenericArrayVecDeque::new();
-  /// deque.push_back(10).unwrap();
-  /// deque.push_back(20).unwrap();
+  /// let mut deque: GenericArrayDeque<u32, U8> = GenericArrayDeque::new();
+  /// assert!(deque.push_back(10).is_none());
+  /// assert!(deque.push_back(20).is_none());
   /// *deque.get_mut(0).unwrap() += 5;
   /// assert_eq!(*deque.get(0).unwrap(), 15);
   /// ```
@@ -730,9 +1069,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U2};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U2> = GenericArrayVecDeque::new();
+  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
   /// assert!(deque.push_back(10).is_none());
   /// assert!(deque.push_back(20).is_none());
   /// assert!(deque.push_back(30).is_some());
@@ -761,9 +1100,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut d = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut d = GenericArrayDeque::<u32, U8>::new();
   /// d.push_back(1);
   /// d.push_back(2);
   ///
@@ -790,17 +1129,19 @@ where
   /// returns `true`, or [`None`] if the predicate returns false or the deque
   /// is empty (the predicate will not be called in that case).
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// #![feature(vec_deque_pop_if)]
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque: VecDeque<i32> = vec![0, 1, 2, 3, 4].into();
+  /// let mut deque = GenericArrayDeque::<i32, U8>::new();
+  /// for value in 0..5 {
+  ///     assert!(deque.push_back(value).is_none());
+  /// }
   /// let pred = |x: &mut i32| *x % 2 == 0;
   ///
   /// assert_eq!(deque.pop_front_if(pred), Some(0));
-  /// assert_eq!(deque, [1, 2, 3, 4]);
+  /// assert_eq!(deque.front(), Some(&1));
   /// assert_eq!(deque.pop_front_if(pred), None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -819,9 +1160,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut buf = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
   /// assert_eq!(buf.pop_back(), None);
   /// buf.push_back(1);
   /// buf.push_back(3);
@@ -844,17 +1185,19 @@ where
   /// returns `true`, or [`None`] if the predicate returns false or the deque
   /// is empty (the predicate will not be called in that case).
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// #![feature(vec_deque_pop_if)]
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque: VecDeque<i32> = vec![0, 1, 2, 3, 4].into();
+  /// let mut deque = GenericArrayDeque::<i32, U8>::new();
+  /// for value in 0..5 {
+  ///     assert!(deque.push_back(value).is_none());
+  /// }
   /// let pred = |x: &mut i32| *x % 2 == 0;
   ///
   /// assert_eq!(deque.pop_back_if(pred), Some(4));
-  /// assert_eq!(deque, [0, 1, 2, 3]);
+  /// assert_eq!(deque.back(), Some(&3));
   /// assert_eq!(deque.pop_back_if(pred), None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -874,9 +1217,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U2};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U2> = GenericArrayVecDeque::new();
+  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
   /// let elem_ref = deque.push_back_mut(10).unwrap();
   /// *elem_ref += 5;
   /// assert_eq!(*deque.get(0).unwrap(), 15);
@@ -908,9 +1251,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U2};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U2> = GenericArrayVecDeque::new();
+  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
   ///
   /// assert!(deque.push_front(10).is_none());
   /// assert!(deque.push_front(20).is_none());
@@ -939,9 +1282,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U2};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayVecDeque<u32, U2> = GenericArrayVecDeque::new();
+  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
   /// let elem_ref = deque.push_front_mut(10).unwrap();
   /// *elem_ref += 5;
   /// assert_eq!(*deque.get(0).unwrap(), 15);
@@ -983,9 +1326,12 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U10};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
   ///
-  /// let mut buf: GenericArrayVecDeque<u32, U10> = (0..10).collect();
+  /// let mut buf: GenericArrayDeque<u32, U10> = GenericArrayDeque::new();
+  /// for value in 0..10 {
+  ///     assert!(buf.push_back(value).is_none());
+  /// }
   ///
   /// buf.rotate_left(3);
   /// assert_eq!(buf, [3, 4, 5, 6, 7, 8, 9, 0, 1, 2]);
@@ -1026,9 +1372,12 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U10};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
   ///
-  /// let mut buf: GenericArrayVecDeque<u32, U10> = (0..10).collect();
+  /// let mut buf: GenericArrayDeque<u32, U10> = GenericArrayDeque::new();
+  /// for value in 0..10 {
+  ///     assert!(buf.push_back(value).is_none());
+  /// }
   ///
   /// buf.rotate_right(3);
   /// assert_eq!(buf, [7, 8, 9, 0, 1, 2, 3, 4, 5, 6]);
@@ -1061,48 +1410,42 @@ where
   /// [`as_mut_slices`] methods will return the entire contents of the
   /// deque in a single slice.
   ///
-  /// [`as_slices`]: VecDeque::as_slices
-  /// [`as_mut_slices`]: VecDeque::as_mut_slices
+  /// [`as_slices`]: GenericArrayDeque::as_slices
+  /// [`as_mut_slices`]: GenericArrayDeque::as_mut_slices
   ///
   /// ## Examples
   ///
   /// Sorting the content of a deque.
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut buf = VecDeque::with_capacity(15);
+  /// let mut buf = GenericArrayDeque::<i32, U8>::new();
+  /// assert!(buf.push_back(2).is_none());
+  /// assert!(buf.push_back(1).is_none());
+  /// assert!(buf.push_front(3).is_none());
   ///
-  /// buf.push_back(2);
-  /// buf.push_back(1);
-  /// buf.push_front(3);
-  ///
-  /// // sorting the deque
   /// buf.make_contiguous().sort();
-  /// assert_eq!(buf.as_slices(), (&[1, 2, 3] as &[_], &[] as &[_]));
+  /// assert_eq!(buf.as_slices(), (&[1, 2, 3][..], &[][..]));
   ///
-  /// // sorting it in reverse order
   /// buf.make_contiguous().sort_by(|a, b| b.cmp(a));
-  /// assert_eq!(buf.as_slices(), (&[3, 2, 1] as &[_], &[] as &[_]));
+  /// assert_eq!(buf.as_slices(), (&[3, 2, 1][..], &[][..]));
   /// ```
   ///
   /// Getting immutable access to the contiguous slice.
   ///
   /// ```rust
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut buf = VecDeque::new();
-  ///
-  /// buf.push_back(2);
-  /// buf.push_back(1);
-  /// buf.push_front(3);
+  /// let mut buf = GenericArrayDeque::<i32, U8>::new();
+  /// assert!(buf.push_back(2).is_none());
+  /// assert!(buf.push_back(1).is_none());
+  /// assert!(buf.push_front(3).is_none());
   ///
   /// buf.make_contiguous();
   /// if let (slice, &[]) = buf.as_slices() {
-  ///     // we can now be sure that `slice` contains all elements of the deque,
-  ///     // while still having immutable access to `buf`.
   ///     assert_eq!(buf.len(), slice.len());
-  ///     assert_eq!(slice, &[3, 2, 1] as &[_]);
+  ///     assert_eq!(slice, &[3, 2, 1]);
   /// }
   /// ```
   pub const fn make_contiguous(&mut self) -> &mut [T] {
@@ -1240,9 +1583,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut buf = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
   /// buf.push_back(5);
   /// buf.push_back(10);
   /// buf.push_back(15);
@@ -1268,7 +1611,7 @@ where
     // * Any slice passed to `drop_in_place` is valid; the second case has
     //   `len <= front.len()` and returning on `len > self.len()` ensures
     //   `begin <= back.len()` in the first case
-    // * The head of the VecDeque is moved before calling `drop_in_place`,
+    // * The head of the deque is moved before calling `drop_in_place`,
     //   so no value is dropped twice if `drop_in_place` panics
     unsafe {
       if len >= self.len {
@@ -1300,17 +1643,15 @@ where
   /// If `len` is greater or equal to the deque's current length, this has
   /// no effect.
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// # #![feature(vec_deque_truncate_front)]
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_front(5);
-  /// buf.push_front(10);
-  /// buf.push_front(15);
-  /// assert_eq!(buf, [15, 10, 5]);
+  /// let mut buf = GenericArrayDeque::<u32, U4>::new();
+  /// assert!(buf.push_front(5).is_none());
+  /// assert!(buf.push_front(10).is_none());
+  /// assert!(buf.push_front(15).is_none());
   /// assert_eq!(buf.as_slices(), (&[15, 10, 5][..], &[][..]));
   /// buf.truncate_front(1);
   /// assert_eq!(buf.as_slices(), (&[5][..], &[][..]));
@@ -1365,9 +1706,9 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayVecDeque, typenum::U8};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayVecDeque::<u32, U8>::new();
+  /// let mut deque = GenericArrayDeque::<u32, U8>::new();
   /// deque.push_back(1);
   /// deque.clear();
   /// assert!(deque.is_empty());
@@ -1384,22 +1725,21 @@ where
   ///
   /// This operation is *O*(*n*).
   ///
-  /// Note that if you have a sorted `VecDeque`, [`binary_search`] may be faster.
+  /// Note that if you have a sorted deque, [`binary_search`] may be faster.
   ///
-  /// [`binary_search`]: VecDeque::binary_search
+  /// [`binary_search`]: GenericArrayDeque::binary_search
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut deque: VecDeque<u32> = VecDeque::new();
+  /// let mut deque = GenericArrayDeque::<u32, U4>::new();
+  /// assert!(deque.push_back(0).is_none());
+  /// assert!(deque.push_back(1).is_none());
   ///
-  /// deque.push_back(0);
-  /// deque.push_back(1);
-  ///
-  /// assert_eq!(deque.contains(&1), true);
-  /// assert_eq!(deque.contains(&10), false);
+  /// assert!(deque.contains(&1));
+  /// assert!(!deque.contains(&10));
   /// ```
   #[inline]
   pub fn contains(&self, x: &T) -> bool
@@ -1410,8 +1750,8 @@ where
     a.contains(x) || b.contains(x)
   }
 
-  /// Binary searches this `VecDeque` for a given element.
-  /// If the `VecDeque` is not sorted, the returned result is unspecified and
+  /// Binary searches this deque for a given element.
+  /// If the deque is not sorted, the returned result is unspecified and
   /// meaningless.
   ///
   /// If the value is found then [`Result::Ok`] is returned, containing the
@@ -1422,9 +1762,9 @@ where
   ///
   /// See also [`binary_search_by`], [`binary_search_by_key`], and [`partition_point`].
   ///
-  /// [`binary_search_by`]: VecDeque::binary_search_by
-  /// [`binary_search_by_key`]: VecDeque::binary_search_by_key
-  /// [`partition_point`]: VecDeque::partition_point
+  /// [`binary_search_by`]: GenericArrayDeque::binary_search_by
+  /// [`binary_search_by_key`]: GenericArrayDeque::binary_search_by_key
+  /// [`partition_point`]: GenericArrayDeque::partition_point
   ///
   /// ## Examples
   ///
@@ -1433,9 +1773,11 @@ where
   /// found; the fourth could match any position in `[1, 4]`.
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].into();
+  /// let deque = GenericArrayDeque::<i32, U16>::try_from_iter([
+  ///     0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
+  /// ]).unwrap();
   ///
   /// assert_eq!(deque.binary_search(&13),  Ok(9));
   /// assert_eq!(deque.binary_search(&4),   Err(7));
@@ -1448,16 +1790,14 @@ where
   /// sort order, consider using [`partition_point`]:
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let mut deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].into();
+  /// let deque = GenericArrayDeque::<i32, U16>::try_from_iter([
+  ///     0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
+  /// ]).unwrap();
   /// let num = 42;
   /// let idx = deque.partition_point(|&x| x <= num);
-  /// // If `num` is unique, `s.partition_point(|&x| x < num)` (with `<`) is equivalent to
-  /// // `s.binary_search(&num).unwrap_or_else(|x| x)`, but using `<=` may allow `insert`
-  /// // to shift less elements.
-  /// deque.insert(idx, num);
-  /// assert_eq!(deque, &[0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
+  /// // `idx` can now be used with `insert` to keep the deque sorted.
   /// ```
   #[inline]
   pub fn binary_search(&self, x: &T) -> Result<usize, usize>
@@ -1467,14 +1807,14 @@ where
     self.binary_search_by(|e| e.cmp(x))
   }
 
-  /// Binary searches this `VecDeque` with a comparator function.
+  /// Binary searches this deque with a comparator function.
   ///
   /// The comparator function should return an order code that indicates
   /// whether its argument is `Less`, `Equal` or `Greater` the desired
   /// target.
-  /// If the `VecDeque` is not sorted or if the comparator function does not
+  /// If the deque is not sorted or if the comparator function does not
   /// implement an order consistent with the sort order of the underlying
-  /// `VecDeque`, the returned result is unspecified and meaningless.
+  /// deque, the returned result is unspecified and meaningless.
   ///
   /// If the value is found then [`Result::Ok`] is returned, containing the
   /// index of the matching element. If there are multiple matches, then any
@@ -1484,9 +1824,9 @@ where
   ///
   /// See also [`binary_search`], [`binary_search_by_key`], and [`partition_point`].
   ///
-  /// [`binary_search`]: VecDeque::binary_search
-  /// [`binary_search_by_key`]: VecDeque::binary_search_by_key
-  /// [`partition_point`]: VecDeque::partition_point
+  /// [`binary_search`]: GenericArrayDeque::binary_search
+  /// [`binary_search_by_key`]: GenericArrayDeque::binary_search_by_key
+  /// [`partition_point`]: GenericArrayDeque::partition_point
   ///
   /// ## Examples
   ///
@@ -1495,9 +1835,11 @@ where
   /// found; the fourth could match any position in `[1, 4]`.
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].into();
+  /// let deque = GenericArrayDeque::<i32, U16>::try_from_iter([
+  ///     0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
+  /// ]).unwrap();
   ///
   /// assert_eq!(deque.binary_search_by(|x| x.cmp(&13)),  Ok(9));
   /// assert_eq!(deque.binary_search_by(|x| x.cmp(&4)),   Err(7));
@@ -1524,7 +1866,7 @@ where
     }
   }
 
-  /// Binary searches this `VecDeque` with a key extraction function.
+  /// Binary searches this deque with a key extraction function.
   ///
   /// Assumes that the deque is sorted by the key, for instance with
   /// [`make_contiguous().sort_by_key()`] using the same key extraction function.
@@ -1539,10 +1881,10 @@ where
   ///
   /// See also [`binary_search`], [`binary_search_by`], and [`partition_point`].
   ///
-  /// [`make_contiguous().sort_by_key()`]: VecDeque::make_contiguous
-  /// [`binary_search`]: VecDeque::binary_search
-  /// [`binary_search_by`]: VecDeque::binary_search_by
-  /// [`partition_point`]: VecDeque::partition_point
+  /// [`make_contiguous().sort_by_key()`]: GenericArrayDeque::make_contiguous
+  /// [`binary_search`]: GenericArrayDeque::binary_search
+  /// [`binary_search_by`]: GenericArrayDeque::binary_search_by
+  /// [`partition_point`]: GenericArrayDeque::partition_point
   ///
   /// ## Examples
   ///
@@ -1552,11 +1894,12 @@ where
   /// fourth could match any position in `[1, 4]`.
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let deque: VecDeque<_> = [(0, 0), (2, 1), (4, 1), (5, 1),
-  ///          (3, 1), (1, 2), (2, 3), (4, 5), (5, 8), (3, 13),
-  ///          (1, 21), (2, 34), (4, 55)].into();
+  /// let deque = GenericArrayDeque::<(i32, i32), U16>::try_from_iter([
+  ///     (0, 0), (2, 1), (4, 1), (5, 1), (3, 1), (1, 2), (2, 3),
+  ///     (4, 5), (5, 8), (3, 13), (1, 21), (2, 34), (4, 55),
+  /// ]).unwrap();
   ///
   /// assert_eq!(deque.binary_search_by_key(&13, |&(a, b)| b),  Ok(9));
   /// assert_eq!(deque.binary_search_by_key(&4, |&(a, b)| b),   Err(7));
@@ -1587,16 +1930,16 @@ where
   ///
   /// See also [`binary_search`], [`binary_search_by`], and [`binary_search_by_key`].
   ///
-  /// [`binary_search`]: VecDeque::binary_search
-  /// [`binary_search_by`]: VecDeque::binary_search_by
-  /// [`binary_search_by_key`]: VecDeque::binary_search_by_key
+  /// [`binary_search`]: GenericArrayDeque::binary_search
+  /// [`binary_search_by`]: GenericArrayDeque::binary_search_by
+  /// [`binary_search_by_key`]: GenericArrayDeque::binary_search_by_key
   ///
   /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let deque: VecDeque<_> = [1, 2, 3, 3, 5, 6, 7].into();
+  /// let deque = GenericArrayDeque::<i32, U8>::try_from_iter([1, 2, 3, 3, 5, 6, 7]).unwrap();
   /// let i = deque.partition_point(|&x| x < 5);
   ///
   /// assert_eq!(i, 4);
@@ -1608,13 +1951,14 @@ where
   /// sort order:
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let mut deque: VecDeque<_> = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55].into();
+  /// let deque = GenericArrayDeque::<i32, U16>::try_from_iter([
+  ///     0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
+  /// ]).unwrap();
   /// let num = 42;
   /// let idx = deque.partition_point(|&x| x < num);
-  /// deque.insert(idx, num);
-  /// assert_eq!(deque, &[0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
+  /// // The returned index indicates where `num` should be inserted.
   /// ```
   pub fn partition_point<P>(&self, mut pred: P) -> usize
   where
@@ -1642,15 +1986,14 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_back(3);
-  /// buf.push_back(4);
-  /// buf.push_back(5);
-  /// assert_eq!(buf, [3, 4, 5]);
+  /// let mut buf = GenericArrayDeque::<i32, U4>::new();
+  /// assert!(buf.push_back(3).is_none());
+  /// assert!(buf.push_back(4).is_none());
+  /// assert!(buf.push_back(5).is_none());
   /// buf.swap(0, 2);
-  /// assert_eq!(buf, [5, 4, 3]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 4, 3]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn swap(&mut self, i: usize, j: usize) {
@@ -1673,17 +2016,15 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
+  /// let mut buf = GenericArrayDeque::<i32, U4>::new();
   /// assert_eq!(buf.swap_remove_front(0), None);
-  /// buf.push_back(1);
-  /// buf.push_back(2);
-  /// buf.push_back(3);
-  /// assert_eq!(buf, [1, 2, 3]);
-  ///
+  /// assert!(buf.push_back(1).is_none());
+  /// assert!(buf.push_back(2).is_none());
+  /// assert!(buf.push_back(3).is_none());
   /// assert_eq!(buf.swap_remove_front(2), Some(3));
-  /// assert_eq!(buf, [2, 1]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![2, 1]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn swap_remove_front(&mut self, index: usize) -> Option<T> {
@@ -1708,17 +2049,15 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
+  /// let mut buf = GenericArrayDeque::<i32, U4>::new();
   /// assert_eq!(buf.swap_remove_back(0), None);
-  /// buf.push_back(1);
-  /// buf.push_back(2);
-  /// buf.push_back(3);
-  /// assert_eq!(buf, [1, 2, 3]);
-  ///
+  /// assert!(buf.push_back(1).is_none());
+  /// assert!(buf.push_back(2).is_none());
+  /// assert!(buf.push_back(3).is_none());
   /// assert_eq!(buf.swap_remove_back(0), Some(1));
-  /// assert_eq!(buf, [3, 2]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![3, 2]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn swap_remove_back(&mut self, index: usize) -> Option<T> {
@@ -1741,24 +2080,21 @@ where
   ///
   /// ## Examples
   ///
-  /// ```
-  /// use std::collections::VecDeque;
+  /// ```ignore
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut vec_deque = VecDeque::new();
-  /// vec_deque.push_back('a');
-  /// vec_deque.push_back('b');
-  /// vec_deque.push_back('c');
-  /// assert_eq!(vec_deque, &['a', 'b', 'c']);
+  /// let mut deque = GenericArrayDeque::<char, U8>::new();
+  /// deque.push_back('a');
+  /// deque.push_back('b');
+  /// deque.push_back('c');
   ///
-  /// vec_deque.insert(1, 'd');
-  /// assert_eq!(vec_deque, &['a', 'd', 'b', 'c']);
-  ///
-  /// vec_deque.insert(4, 'e');
-  /// assert_eq!(vec_deque, &['a', 'd', 'b', 'c', 'e']);
+  /// deque.insert(1, 'd');
+  /// deque.insert(4, 'e');
+  /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec!['a', 'd', 'b', 'c', 'e']);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn insert(&mut self, index: usize, value: T) -> Option<T> {
-    if index <= self.len() || self.is_full() {
+    if index > self.len() || self.is_full() {
       return Some(value);
     }
 
@@ -1777,19 +2113,17 @@ where
   ///
   /// ## Examples
   ///
-  /// ```
-  /// #![feature(push_mut)]
-  /// use std::collections::VecDeque;
+  /// ```ignore
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut vec_deque = VecDeque::from([1, 2, 3]);
-  ///
-  /// let x = vec_deque.insert_mut(1, 5);
+  /// let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter([1, 2, 3]).unwrap();
+  /// let x = deque.insert_mut(1, 5);
   /// *x += 7;
-  /// assert_eq!(vec_deque, &[1, 12, 2, 3]);
+  /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![1, 12, 2, 3]);
   /// ```
-  #[must_use = "if you don't need a reference to the value, use `VecDeque::insert` instead"]
+  #[must_use = "if you don't need a reference to the value, use `GenericArrayDeque::insert` instead"]
   pub const fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
-    if index <= self.len() || self.is_full() {
+    if index > self.len() || self.is_full() {
       return Err(value);
     }
 
@@ -1806,16 +2140,14 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_back('a');
-  /// buf.push_back('b');
-  /// buf.push_back('c');
-  /// assert_eq!(buf, ['a', 'b', 'c']);
-  ///
+  /// let mut buf = GenericArrayDeque::<char, U4>::new();
+  /// assert!(buf.push_back('a').is_none());
+  /// assert!(buf.push_back('b').is_none());
+  /// assert!(buf.push_back('c').is_none());
   /// assert_eq!(buf.remove(1), Some('b'));
-  /// assert_eq!(buf, ['a', 'c']);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec!['a', 'c']);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn remove(&mut self, index: usize) -> Option<T> {
@@ -1843,9 +2175,102 @@ where
 
     elem
   }
+
+  /// Retains only the elements specified by the predicate.
+  ///
+  /// In other words, remove all elements `e` for which `f(&e)` returns false.
+  /// This method operates in place, visiting each element exactly once in the
+  /// original order, and preserves the order of the retained elements.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
+  ///
+  /// let mut buf = GenericArrayDeque::<i32, U10>::new();
+  /// buf.extend(1..5);
+  /// buf.retain(|&x| x % 2 == 0);
+  /// assert_eq!(buf, [2, 4]);
+  /// ```
+  ///
+  /// Because the elements are visited exactly once in the original order,
+  /// external state may be used to decide which elements to keep.
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
+  ///
+  /// let mut buf = GenericArrayDeque::<i32, U10>::new();
+  /// buf.extend(1..6);
+  ///
+  /// let keep = [false, true, true, false, true];
+  /// let mut iter = keep.iter();
+  /// buf.retain(|_| *iter.next().unwrap());
+  /// assert_eq!(buf, [2, 3, 5]);
+  /// ```
+  pub fn retain<F>(&mut self, mut f: F)
+  where
+    F: FnMut(&T) -> bool,
+  {
+    self.retain_mut(|elem| f(elem));
+  }
+
+  /// Retains only the elements specified by the predicate.
+  ///
+  /// In other words, remove all elements `e` for which `f(&mut e)` returns false.
+  /// This method operates in place, visiting each element exactly once in the
+  /// original order, and preserves the order of the retained elements.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
+  ///
+  /// let mut buf = GenericArrayDeque::<i32, U10>::new();
+  /// buf.extend(1..5);
+  /// buf.retain_mut(|x| if *x % 2 == 0 {
+  ///     *x += 1;
+  ///     true
+  /// } else {
+  ///     false
+  /// });
+  /// assert_eq!(buf, [3, 5]);
+  /// ```
+  pub fn retain_mut<F>(&mut self, mut f: F)
+  where
+    F: FnMut(&mut T) -> bool,
+  {
+    let len = self.len;
+    let mut idx = 0;
+    let mut cur = 0;
+
+    // Stage 1: All values are retained.
+    while cur < len {
+      if !f(&mut self[cur]) {
+        cur += 1;
+        break;
+      }
+      cur += 1;
+      idx += 1;
+    }
+    // Stage 2: Swap retained value into current idx.
+    while cur < len {
+      if !f(&mut self[cur]) {
+        cur += 1;
+        continue;
+      }
+
+      self.swap(idx, cur);
+      cur += 1;
+      idx += 1;
+    }
+    // Stage 3: Truncate all values after idx.
+    if cur != idx {
+      self.truncate(idx);
+    }
+  }
 }
 
-impl<T, N> GenericArrayVecDeque<T, N>
+impl<T, N> GenericArrayDeque<T, N>
 where
   N: ArrayLength,
   T: Clone,
@@ -1857,22 +2282,24 @@ where
   /// If the deque is full and needs to be extended, returns `Some(value)` back, the
   /// deque is not modified in that case.
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_back(5);
-  /// buf.push_back(10);
-  /// buf.push_back(15);
-  /// assert_eq!(buf, [5, 10, 15]);
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(10).is_none());
+  /// assert!(buf.push_back(15).is_none());
   ///
   /// buf.resize(2, 0);
-  /// assert_eq!(buf, [5, 10]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 10]);
   ///
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(10).is_none());
   /// buf.resize(5, 20);
-  /// assert_eq!(buf, [5, 10, 20, 20, 20]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 10, 20, 20, 20]);
   /// ```
   pub fn resize(&mut self, new_len: usize, value: T) -> Option<T> {
     if new_len > self.capacity() {
@@ -1898,26 +2325,35 @@ where
   /// If the deque is full and needs to be extended, returns `false`, the
   /// deque is not modified in that case.
   ///
-  /// # Examples
+  /// ## Examples
   ///
   /// ```
-  /// use std::collections::VecDeque;
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
-  /// let mut buf = VecDeque::new();
-  /// buf.push_back(5);
-  /// buf.push_back(10);
-  /// buf.push_back(15);
-  /// assert_eq!(buf, [5, 10, 15]);
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(10).is_none());
+  /// assert!(buf.push_back(15).is_none());
   ///
   /// buf.resize_with(5, Default::default);
-  /// assert_eq!(buf, [5, 10, 15, 0, 0]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 10, 15, 0, 0]);
   ///
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(10).is_none());
+  /// assert!(buf.push_back(15).is_none());
   /// buf.resize_with(2, || unreachable!());
-  /// assert_eq!(buf, [5, 10]);
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 10]);
   ///
+  /// let mut buf = GenericArrayDeque::<u32, U8>::new();
+  /// assert!(buf.push_back(5).is_none());
+  /// assert!(buf.push_back(10).is_none());
   /// let mut state = 100;
-  /// buf.resize_with(5, || { state += 1; state });
-  /// assert_eq!(buf, [5, 10, 101, 102, 103]);
+  /// buf.resize_with(5, || {
+  ///     state += 1;
+  ///     state
+  /// });
+  /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 10, 101, 102, 103]);
   /// ```
   pub fn resize_with(&mut self, new_len: usize, generator: impl FnMut() -> T) -> bool {
     let len = self.len;
@@ -1936,7 +2372,7 @@ where
   }
 }
 
-impl<T, N> Drop for GenericArrayVecDeque<T, N>
+impl<T, N> Drop for GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
@@ -1945,7 +2381,7 @@ where
   }
 }
 
-impl<T, N> GenericArrayVecDeque<T, N>
+impl<T, N> GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
@@ -1959,6 +2395,49 @@ where
   #[inline]
   const fn ptr_mut(&mut self) -> *mut MaybeUninit<T> {
     self.array.as_mut_slice().as_mut_ptr()
+  }
+
+  /// Given a range into the logical buffer of the deque, this function
+  /// return two ranges into the physical buffer that correspond to
+  /// the given range. The `len` parameter should usually just be `self.len`;
+  /// the reason it's passed explicitly is that if the deque is wrapped in
+  /// a `Drain`, then `self.len` is not actually the length of the deque.
+  ///
+  /// # Safety
+  ///
+  /// This function is always safe to call. For the resulting ranges to be valid
+  /// ranges into the physical buffer, the caller must ensure that the result of
+  /// calling `slice::range(range, ..len)` represents a valid range into the
+  /// logical buffer, and that all elements in that range are initialized.
+  fn slice_ranges<R>(&self, r: R, len: usize) -> (Range<usize>, Range<usize>)
+  where
+    R: RangeBounds<usize>,
+  {
+    let Range { start, end } = range::<R>(r, ..len);
+    let len = end - start;
+
+    if len == 0 {
+      (0..0, 0..0)
+    } else {
+      // `slice::range` guarantees that `start <= end <= len`.
+      // because `len != 0`, we know that `start < end`, so `start < len`
+      // and the indexing is valid.
+      let wrapped_start = self.to_physical_idx(start);
+
+      // this subtraction can never overflow because `wrapped_start` is
+      // at most `self.capacity()` (and if `self.capacity != 0`, then `wrapped_start` is strictly less
+      // than `self.capacity`).
+      let head_len = self.capacity() - wrapped_start;
+
+      if head_len >= len {
+        // we know that `len + wrapped_start <= self.capacity <= usize::MAX`, so this addition can't overflow
+        (wrapped_start..wrapped_start + len, 0..0)
+      } else {
+        // can't overflow because of the if condition
+        let tail_len = len - head_len;
+        (wrapped_start..self.capacity(), 0..tail_len)
+      }
+    }
   }
 
   /// Given a range into the logical buffer of the deque, this function
@@ -2102,6 +2581,25 @@ where
     );
     unsafe {
       ptr::copy(self.ptr().add(src), self.ptr().add(dst) as _, len);
+    }
+  }
+
+  /// Copies all values from `src` to `dst`, wrapping around if needed.
+  /// Assumes capacity is sufficient.
+  #[inline]
+  const unsafe fn copy_slice(&mut self, dst: usize, src: &[T]) {
+    debug_assert!(src.len() <= self.capacity());
+    let head_room = self.capacity() - dst;
+    if src.len() <= head_room {
+      unsafe {
+        ptr::copy_nonoverlapping(src.as_ptr(), self.ptr_mut().add(dst) as _, src.len());
+      }
+    } else {
+      let (left, right) = src.split_at(head_room);
+      unsafe {
+        ptr::copy_nonoverlapping(left.as_ptr(), self.ptr_mut().add(dst) as _, left.len());
+        ptr::copy_nonoverlapping(right.as_ptr(), self.ptr_mut() as _, right.len());
+      }
     }
   }
 
@@ -2262,6 +2760,66 @@ where
     }
   }
 
+  /// Writes all values from `iter` to `dst`.
+  ///
+  /// # Safety
+  ///
+  /// Assumes no wrapping around happens.
+  /// Assumes capacity is sufficient.
+  #[inline]
+  unsafe fn write_iter(&mut self, dst: usize, iter: impl Iterator<Item = T>, written: &mut usize) {
+    iter.enumerate().for_each(|(i, element)| unsafe {
+      self.buffer_write(dst + i, element);
+      *written += 1;
+    });
+  }
+
+  /// Writes all values from `iter` to `dst`, wrapping
+  /// at the end of the buffer and returns the number
+  /// of written values.
+  ///
+  /// # Safety
+  ///
+  /// Assumes that `iter` yields at most `len` items.
+  /// Assumes capacity is sufficient.
+  unsafe fn write_iter_wrapping(
+    &mut self,
+    dst: usize,
+    mut iter: impl Iterator<Item = T>,
+    len: usize,
+  ) -> usize {
+    struct Guard<'a, T, N: ArrayLength> {
+      deque: &'a mut GenericArrayDeque<T, N>,
+      written: usize,
+    }
+
+    impl<T, N: ArrayLength> Drop for Guard<'_, T, N> {
+      fn drop(&mut self) {
+        self.deque.len += self.written;
+      }
+    }
+
+    let head_room = self.capacity() - dst;
+
+    let mut guard = Guard {
+      deque: self,
+      written: 0,
+    };
+
+    if head_room >= len {
+      unsafe { guard.deque.write_iter(dst, iter, &mut guard.written) };
+    } else {
+      unsafe {
+        guard
+          .deque
+          .write_iter(dst, iter.by_ref().take(head_room), &mut guard.written);
+        guard.deque.write_iter(0, iter, &mut guard.written)
+      };
+    }
+
+    guard.written
+  }
+
   #[inline]
   const fn is_contiguous(&self) -> bool {
     // Do the calculation like this to avoid overflowing if len + head > usize::MAX
@@ -2282,4 +2840,73 @@ const fn wrap_index(logical_index: usize, capacity: usize) -> usize {
   } else {
     logical_index
   }
+}
+
+fn range<R>(range: R, bounds: ops::RangeTo<usize>) -> ops::Range<usize>
+where
+  R: ops::RangeBounds<usize>,
+{
+  let len = bounds.end;
+
+  let end = match range.end_bound() {
+    ops::Bound::Included(&end) if end >= len => slice_index_fail(0, end, len),
+    // Cannot overflow because `end < len` implies `end < usize::MAX`.
+    ops::Bound::Included(&end) => end + 1,
+
+    ops::Bound::Excluded(&end) if end > len => slice_index_fail(0, end, len),
+    ops::Bound::Excluded(&end) => end,
+    ops::Bound::Unbounded => len,
+  };
+
+  let start = match range.start_bound() {
+    ops::Bound::Excluded(&start) if start >= end => slice_index_fail(start, end, len),
+    // Cannot overflow because `start < end` implies `start < usize::MAX`.
+    ops::Bound::Excluded(&start) => start + 1,
+
+    ops::Bound::Included(&start) if start > end => slice_index_fail(start, end, len),
+    ops::Bound::Included(&start) => start,
+
+    ops::Bound::Unbounded => 0,
+  };
+
+  ops::Range { start, end }
+}
+
+#[track_caller]
+fn slice_index_fail(start: usize, end: usize, len: usize) -> ! {
+  if start > len {
+    panic!(
+      // "slice start index is out of range for slice",
+      "range start index {start} out of range for slice of length {len}",
+      // start: usize,
+      // len: usize,
+    )
+  }
+
+  if end > len {
+    panic!(
+      // "slice end index is out of range for slice",
+      "range end index {end} out of range for slice of length {len}",
+      // end: usize,
+      // len: usize,
+    )
+  }
+
+  if start > end {
+    panic!(
+      // "slice index start is larger than end",
+      "slice index starts at {start} but ends at {end}",
+      // start: usize,
+      // end: usize,
+    )
+  }
+
+  // Only reachable if the range was a `RangeInclusive` or a
+  // `RangeToInclusive`, with `end == len`.
+  panic!(
+    // "slice end index is out of range for slice",
+    "range end index {end} out of range for slice of length {len}",
+    // end: usize,
+    // len: usize,
+  )
 }

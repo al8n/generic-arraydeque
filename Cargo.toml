@@ -17,9 +17,12 @@ harness = false
 [features]
 default = ["std"]
 alloc = []
-std = []
+std = ["auto_enums/default"]
+
+unstable = []
 
 [dependencies]
+auto_enums = { version = "0.8", default-features = false }
 generic-array = { version = "1.3", default-features = false }
 
 [dev-dependencies]

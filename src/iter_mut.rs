@@ -1,12 +1,11 @@
-use core::iter::FusedIterator;
-use core::{fmt, mem, slice};
+use core::{fmt, iter::FusedIterator, mem, slice};
 
-/// A mutable iterator over the elements of a `VecDeque`.
+/// A mutable iterator over the elements of a [`GenericArrayDeque`](crate::GenericArrayDeque).
 ///
-/// This `struct` is created by the [`iter_mut`] method on [`super::VecDeque`]. See its
+/// This `struct` is created by the [`iter_mut`] method on [`super::GenericArrayDeque`]. See its
 /// documentation for more.
 ///
-/// [`iter_mut`]: super::VecDeque::iter_mut
+/// [`iter_mut`]: super::GenericArrayDeque::iter_mut
 pub struct IterMut<'a, T> {
   i1: slice::IterMut<'a, T>,
   i2: slice::IterMut<'a, T>,
@@ -28,26 +27,23 @@ impl<'a, T> IterMut<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// #![feature(vec_deque_iter_as_slices)]
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U6};
   ///
-  /// use std::collections::VecDeque;
-  ///
-  /// let mut deque = VecDeque::new();
-  /// deque.push_back(0);
-  /// deque.push_back(1);
-  /// deque.push_back(2);
-  /// deque.push_front(10);
-  /// deque.push_front(9);
-  /// deque.push_front(8);
+  /// let mut deque = GenericArrayDeque::<u32, U6>::new();
+  /// for value in 0..5 {
+  ///     assert!(deque.push_back(value).is_none());
+  /// }
   ///
   /// let mut iter = deque.iter_mut();
   /// iter.next();
-  /// iter.next_back();
   ///
-  /// let slices = iter.into_slices();
-  /// slices.0[0] = 42;
-  /// slices.1[0] = 24;
-  /// assert_eq!(deque.as_slices(), (&[8, 42, 10][..], &[24, 1, 2][..]));
+  /// let (left, right) = iter.into_slices();
+  /// if let Some(first) = left.first_mut() {
+  ///     *first = 42;
+  /// }
+  /// assert!(right.is_empty());
+  /// drop((left, right));
+  /// assert_eq!(deque.get(1), Some(&42));
   /// ```
   pub fn into_slices(self) -> (&'a mut [T], &'a mut [T]) {
     (self.i1.into_slice(), self.i2.into_slice())
@@ -64,23 +60,17 @@ impl<'a, T> IterMut<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// #![feature(vec_deque_iter_as_slices)]
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// use std::collections::VecDeque;
-  ///
-  /// let mut deque = VecDeque::new();
-  /// deque.push_back(0);
-  /// deque.push_back(1);
-  /// deque.push_back(2);
-  /// deque.push_front(10);
-  /// deque.push_front(9);
-  /// deque.push_front(8);
+  /// let mut deque = GenericArrayDeque::<u32, U4>::new();
+  /// for value in 0..3 {
+  ///     assert!(deque.push_back(value).is_none());
+  /// }
   ///
   /// let mut iter = deque.iter_mut();
   /// iter.next();
-  /// iter.next_back();
   ///
-  /// assert_eq!(iter.as_slices(), (&[9, 10][..], &[0, 1][..]));
+  /// assert_eq!(iter.as_slices(), (&[1, 2][..], &[][..]));
   /// ```
   pub fn as_slices(&self) -> (&[T], &[T]) {
     (self.i1.as_slice(), self.i2.as_slice())
@@ -97,11 +87,12 @@ impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
 }
 
 impl<T> Default for IterMut<'_, T> {
-  /// Creates an empty `vec_deque::IterMut`.
+  /// Creates an empty iterator.
   ///
   /// ```
-  /// # use std::collections::vec_deque;
-  /// let iter: vec_deque::IterMut<'_, u8> = Default::default();
+  /// use generic_arraydeque::IterMut;
+  ///
+  /// let iter: IterMut<'_, u8> = Default::default();
   /// assert_eq!(iter.len(), 0);
   /// ```
   fn default() -> Self {

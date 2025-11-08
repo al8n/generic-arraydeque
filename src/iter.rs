@@ -1,12 +1,11 @@
-use core::iter::FusedIterator;
-use core::{fmt, mem, slice};
+use core::{fmt, iter::FusedIterator, mem, slice};
 
-/// An iterator over the elements of a `VecDeque`.
+/// An iterator over the elements of a [`GenericArrayDeque`](crate::GenericArrayDeque).
 ///
-/// This `struct` is created by the [`iter`] method on [`super::VecDeque`]. See its
+/// This `struct` is created by the [`iter`] method on [`super::GenericArrayDeque`]. See its
 /// documentation for more.
 ///
-/// [`iter`]: super::VecDeque::iter
+/// [`iter`]: super::GenericArrayDeque::iter
 #[derive(Clone)]
 pub struct Iter<'a, T> {
   i1: slice::Iter<'a, T>,
@@ -23,29 +22,24 @@ impl<'a, T> Iter<'a, T> {
   /// The slices contain, in order, the contents of the deque not yet yielded
   /// by the iterator.
   ///
-  /// This has the same lifetime as the original `VecDeque`, and so the
+  /// This has the same lifetime as the original deque, and so the
   /// iterator can continue to be used while this exists.
   ///
   /// # Examples
   ///
   /// ```
-  /// #![feature(vec_deque_iter_as_slices)]
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
   ///
-  /// use std::collections::VecDeque;
-  ///
-  /// let mut deque = VecDeque::new();
-  /// deque.push_back(0);
-  /// deque.push_back(1);
-  /// deque.push_back(2);
-  /// deque.push_front(10);
-  /// deque.push_front(9);
-  /// deque.push_front(8);
+  /// let mut deque = GenericArrayDeque::<u32, U4>::new();
+  /// for value in 0..3 {
+  ///     assert!(deque.push_back(value).is_none());
+  /// }
   ///
   /// let mut iter = deque.iter();
-  /// iter.next();
-  /// iter.next_back();
-  ///
-  /// assert_eq!(iter.as_slices(), (&[9, 10][..], &[0, 1][..]));
+  /// assert_eq!(iter.next(), Some(&0));
+  /// let (front, back) = iter.as_slices();
+  /// assert_eq!(front, &[1, 2]);
+  /// assert!(back.is_empty());
   /// ```
   pub fn as_slices(&self) -> (&'a [T], &'a [T]) {
     (self.i1.as_slice(), self.i2.as_slice())
@@ -62,11 +56,12 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
 }
 
 impl<T> Default for Iter<'_, T> {
-  /// Creates an empty `vec_deque::Iter`.
+  /// Creates an empty iterator.
   ///
   /// ```
-  /// # use std::collections::vec_deque;
-  /// let iter: vec_deque::Iter<'_, u8> = Default::default();
+  /// use generic_arraydeque::Iter;
+  ///
+  /// let iter: Iter<'_, u8> = Default::default();
   /// assert_eq!(iter.len(), 0);
   /// ```
   fn default() -> Self {

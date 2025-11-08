@@ -1,24 +1,24 @@
-use core::fmt;
-use core::iter::FusedIterator;
+use core::{fmt, iter::FusedIterator};
 
-use super::{ArrayLength, GenericArrayVecDeque};
+use super::{ArrayLength, GenericArrayDeque};
 
-/// An owning iterator over the elements of a `VecDeque`.
+/// An owning iterator over the elements of a [`GenericArrayDeque`].
 ///
-/// This `struct` is created by the [`into_iter`] method on [`VecDeque`]
+/// This `struct` is created by the [`into_iter`] method on [`GenericArrayDeque`]
 /// (provided by the [`IntoIterator`] trait). See its documentation for more.
 ///
-/// [`into_iter`]: VecDeque::into_iter
+/// [`GenericArrayDeque`]: crate::GenericArrayDeque
+/// [`into_iter`]: GenericArrayDeque::into_iter
 #[derive(Clone)]
 pub struct IntoIter<T, N>
 where
   N: ArrayLength,
 {
-  inner: GenericArrayVecDeque<T, N>,
+  inner: GenericArrayDeque<T, N>,
 }
 
 impl<T, N: ArrayLength> IntoIter<T, N> {
-  pub(super) fn new(inner: GenericArrayVecDeque<T, N>) -> Self {
+  pub(super) fn new(inner: GenericArrayDeque<T, N>) -> Self {
     IntoIter { inner }
   }
 }
