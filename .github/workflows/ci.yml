@@ -168,7 +168,7 @@ jobs:
           #   cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.65.0
-            args: ""
+            args: "--each-feature"
             cargo_hack: 0.6.5
           - os: macos-latest
             toolchain: stable
@@ -237,7 +237,7 @@ jobs:
           #   cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.65.0
-            args: ""
+            args: "--each-feature"
             cargo_hack: 0.6.5
           - os: macos-latest
             toolchain: stable
