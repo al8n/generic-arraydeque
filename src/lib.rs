@@ -14,25 +14,25 @@ use core::{
   cmp::Ordering,
   fmt,
   hash::{Hash, Hasher},
-  iter::{once, repeat_n, repeat_with, Chain, Once},
+  iter::{once, repeat_with, Chain, Once},
   mem::{self, ManuallyDrop, MaybeUninit},
   ops::{self, Index, IndexMut, Range, RangeBounds},
   ptr, slice,
 };
 use generic_array::GenericArray;
+use macros::insert;
 
-#[cfg(feature = "unstable")]
-#[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-pub use extract_if::ExtractIf;
 pub use generic_array::{typenum, ArrayLength};
 pub use into_iter::IntoIter;
 pub use iter::Iter;
 pub use iter_mut::IterMut;
 
-mod drain;
 #[cfg(feature = "unstable")]
 #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-mod extract_if;
+pub use unstable::ExtractIf;
+
+mod drain;
+
 mod into_iter;
 #[cfg(feature = "std")]
 mod io;
@@ -44,6 +44,12 @@ mod serde;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "unstable")]
+#[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
+mod unstable;
+
+mod macros;
 
 pub struct GenericArrayDeque<T, N>
 where
@@ -311,35 +317,6 @@ const _: () = {
     }
   }
 };
-
-macro_rules! insert {
-  ($this:ident($index:ident, $value:ident)) => {{
-    let k = $this.len - $index;
-    if k < $index {
-      // `index + 1` can't overflow, because if index was usize::MAX, then either the
-      // assert would've failed, or the deque would've tried to grow past usize::MAX
-      // and panicked.
-      unsafe {
-        // see `remove()` for explanation why this wrap_copy() call is safe.
-        $this.wrap_copy(
-          $this.to_physical_idx($index),
-          $this.to_physical_idx($index + 1),
-          k,
-        );
-        $this.len += 1;
-        $this.buffer_write($this.to_physical_idx($index), $value)
-      }
-    } else {
-      let old_head = $this.head;
-      $this.head = $this.wrap_sub($this.head, 1);
-      unsafe {
-        $this.wrap_copy(old_head, $this.head, $index);
-        $this.len += 1;
-        $this.buffer_write($this.to_physical_idx($index), $value)
-      }
-    }
-  }};
-}
 
 impl<T, N> GenericArrayDeque<T, N>
 where
@@ -863,7 +840,11 @@ where
     }
 
     if mem::size_of::<T>() == 0 {
-      self.len = self.len.checked_add(other.len).expect("capacity overflow");
+      match self.len.checked_add(other.len) {
+        Some(new_len) => self.len = new_len,
+        None => panic!("capacity overflow"),
+      }
+
       other.len = 0;
       other.head = 0;
       return true;
@@ -1186,37 +1167,6 @@ where
     }
   }
 
-  /// Removes and returns the first element from the deque if the predicate
-  /// returns `true`, or [`None`] if the predicate returns false or the deque
-  /// is empty (the predicate will not be called in that case).
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
-  ///
-  /// let mut deque = GenericArrayDeque::<i32, U8>::new();
-  /// for value in 0..5 {
-  ///     assert!(deque.push_back(value).is_none());
-  /// }
-  /// let pred = |x: &mut i32| *x % 2 == 0;
-  ///
-  /// assert_eq!(deque.pop_front_if(pred), Some(0));
-  /// assert_eq!(deque.front(), Some(&1));
-  /// assert_eq!(deque.pop_front_if(pred), None);
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg(feature = "unstable")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  pub fn pop_front_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T> {
-    let first = self.front_mut()?;
-    if predicate(first) {
-      self.pop_front()
-    } else {
-      None
-    }
-  }
-
   /// Removes the last element from the deque and returns it, or `None` if
   /// it is empty.
   ///
@@ -1241,74 +1191,6 @@ where
       unsafe {
         core::hint::assert_unchecked(self.len < self.capacity());
         Some(self.buffer_read(self.to_physical_idx(self.len)))
-      }
-    }
-  }
-
-  /// Removes and returns the last element from the deque if the predicate
-  /// returns `true`, or [`None`] if the predicate returns false or the deque
-  /// is empty (the predicate will not be called in that case).
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
-  ///
-  /// let mut deque = GenericArrayDeque::<i32, U8>::new();
-  /// for value in 0..5 {
-  ///     assert!(deque.push_back(value).is_none());
-  /// }
-  /// let pred = |x: &mut i32| *x % 2 == 0;
-  ///
-  /// assert_eq!(deque.pop_back_if(pred), Some(4));
-  /// assert_eq!(deque.back(), Some(&3));
-  /// assert_eq!(deque.pop_back_if(pred), None);
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg(feature = "unstable")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  pub fn pop_back_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T> {
-    let first = self.back_mut()?;
-    if predicate(first) {
-      self.pop_back()
-    } else {
-      None
-    }
-  }
-
-  /// Appends an element to the back of the deque, returning a mutable reference to it if successful.
-  ///
-  /// If the deque is at full capacity, returns the element back without modifying the deque.
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
-  ///
-  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
-  /// let elem_ref = deque.push_back_mut(10).unwrap();
-  /// *elem_ref += 5;
-  /// assert_eq!(*deque.get(0).unwrap(), 15);
-  /// let _ = deque.push_back_mut(20).unwrap();
-  /// assert!(deque.push_back_mut(30).is_err());
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg(feature = "unstable")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn push_back_mut(&mut self, value: T) -> Result<&mut T, T> {
-    if self.is_full() {
-      Err(value)
-    } else {
-      let len = self.len;
-      self.len += 1;
-      let idx = self.to_physical_idx(len);
-
-      // SAFETY: idx is guaranteed to be in-bounds and uninitialized
-      unsafe {
-        let ptr = &mut *self.ptr_mut().add(idx);
-        ptr.write(value);
-        Ok(ptr.assume_init_mut())
       }
     }
   }
@@ -1341,41 +1223,6 @@ where
         let ptr = &mut *self.ptr_mut().add(self.head);
         ptr.write(value);
         None
-      }
-    }
-  }
-
-  /// Prepends an element to the front of the deque, returning a mutable reference to it if successful.
-  ///
-  /// If the deque is at full capacity, returns the element back without modifying the deque.
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
-  ///
-  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
-  /// let elem_ref = deque.push_front_mut(10).unwrap();
-  /// *elem_ref += 5;
-  /// assert_eq!(*deque.get(0).unwrap(), 15);
-  /// let _ = deque.push_front_mut(20).unwrap();
-  /// assert!(deque.push_front_mut(30).is_err());
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg(feature = "unstable")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn push_front_mut(&mut self, value: T) -> Result<&mut T, T> {
-    if self.is_full() {
-      Err(value)
-    } else {
-      self.head = self.wrap_sub(self.head, 1);
-      self.len += 1;
-      // SAFETY: head is guaranteed to be in-bounds and uninitialized
-      unsafe {
-        let ptr = &mut *self.ptr_mut().add(self.head);
-        ptr.write(value);
-        Ok(ptr.assume_init_mut())
       }
     }
   }
@@ -1703,72 +1550,6 @@ where
       } else {
         let drop_back = back as *mut _;
         let drop_front = front.get_unchecked_mut(len..) as *mut _;
-        self.len = len;
-
-        // Make sure the second half is dropped even when a destructor
-        // in the first one panics.
-        let _back_dropper = Dropper(&mut *drop_back);
-        ptr::drop_in_place(drop_front);
-      }
-    }
-  }
-
-  /// Shortens the deque, keeping the last `len` elements and dropping
-  /// the rest.
-  ///
-  /// If `len` is greater or equal to the deque's current length, this has
-  /// no effect.
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
-  ///
-  /// let mut buf = GenericArrayDeque::<u32, U4>::new();
-  /// assert!(buf.push_front(5).is_none());
-  /// assert!(buf.push_front(10).is_none());
-  /// assert!(buf.push_front(15).is_none());
-  /// assert_eq!(buf.as_slices(), (&[15, 10, 5][..], &[][..]));
-  /// buf.truncate_front(1);
-  /// assert_eq!(buf.as_slices(), (&[5][..], &[][..]));
-  /// ```
-  #[cfg(feature = "unstable")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  pub fn truncate_front(&mut self, len: usize) {
-    /// Runs the destructor for all items in the slice when it gets dropped (normally or
-    /// during unwinding).
-    struct Dropper<'a, T>(&'a mut [T]);
-
-    impl<T> Drop for Dropper<'_, T> {
-      fn drop(&mut self) {
-        unsafe {
-          ptr::drop_in_place(self.0);
-        }
-      }
-    }
-
-    unsafe {
-      if len >= self.len {
-        // No action is taken
-        return;
-      }
-
-      let (front, back) = self.as_mut_slices();
-      if len > back.len() {
-        // The 'back' slice remains unchanged.
-        // front.len() + back.len() == self.len, so 'end' is non-negative
-        // and end < front.len()
-        let end = front.len() - (len - back.len());
-        let drop_front = front.get_unchecked_mut(..end) as *mut _;
-        self.head += end;
-        self.len = len;
-        ptr::drop_in_place(drop_front);
-      } else {
-        let drop_front = front as *mut _;
-        // 'end' is non-negative by the condition above
-        let end = back.len() - len;
-        let drop_back = back.get_unchecked_mut(..end) as *mut _;
-        self.head = self.to_physical_idx(self.len - len);
         self.len = len;
 
         // Make sure the second half is dropped even when a destructor
@@ -2184,37 +1965,6 @@ where
 
     let _ = insert!(self(index, value));
     None
-  }
-
-  /// Inserts an element at `index` within the deque, shifting all elements
-  /// with indices greater than or equal to `index` towards the back, and
-  /// returning a reference to it.
-  ///
-  /// Returns `Err(value)` if `index` is strictly greater than the deque's length or if
-  /// the deque is full.
-  ///
-  /// Element at index 0 is the front of the queue.
-  ///
-  /// ## Examples
-  ///
-  /// ```ignore
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
-  ///
-  /// let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter([1, 2, 3]).unwrap();
-  /// let x = deque.insert_mut(1, 5);
-  /// *x += 7;
-  /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![1, 12, 2, 3]);
-  /// ```
-  #[must_use = "if you don't need a reference to the value, use `GenericArrayDeque::insert` instead"]
-  #[cfg(feature = "unstable")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
-    if index > self.len() || self.is_full() {
-      return Err(value);
-    }
-
-    Ok(insert!(self(index, value)))
   }
 
   /// Removes and returns the element at `index` from the deque.
@@ -2948,6 +2698,37 @@ where
   ops::Range { start, end }
 }
 
+#[cfg(feature = "unstable")]
+fn try_range<R>(range: R, bounds: ops::RangeTo<usize>) -> Option<ops::Range<usize>>
+where
+  R: ops::RangeBounds<usize>,
+{
+  let len = bounds.end;
+
+  let end = match range.end_bound() {
+    ops::Bound::Included(&end) if end >= len => return None,
+    // Cannot overflow because `end < len` implies `end < usize::MAX`.
+    ops::Bound::Included(&end) => end + 1,
+
+    ops::Bound::Excluded(&end) if end > len => return None,
+    ops::Bound::Excluded(&end) => end,
+    ops::Bound::Unbounded => len,
+  };
+
+  let start = match range.start_bound() {
+    ops::Bound::Excluded(&start) if start >= end => return None,
+    // Cannot overflow because `start < end` implies `start < usize::MAX`.
+    ops::Bound::Excluded(&start) => start + 1,
+
+    ops::Bound::Included(&start) if start > end => return None,
+    ops::Bound::Included(&start) => start,
+
+    ops::Bound::Unbounded => 0,
+  };
+
+  Some(ops::Range { start, end })
+}
+
 #[track_caller]
 fn slice_index_fail(start: usize, end: usize, len: usize) -> ! {
   if start > len {
@@ -3011,4 +2792,23 @@ const fn check_copy_bounds(dst: usize, src: usize, len: usize, cap: usize) {
     len,
     cap
   );
+}
+
+#[rustversion::since(1.82)]
+#[inline]
+fn repeat_n<T: Clone>(element: T, count: usize) -> impl Iterator<Item = T> {
+  core::iter::repeat_n(element, count)
+}
+
+#[rustversion::before(1.82)]
+#[inline]
+fn repeat_n<T: Clone>(element: T, mut count: usize) -> impl Iterator<Item = T> {
+  core::iter::from_fn(move || {
+    if count == 0 {
+      None
+    } else {
+      count -= 1;
+      Some(element.clone())
+    }
+  })
 }

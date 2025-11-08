@@ -173,8 +173,8 @@ impl<T, N: ArrayLength> Drop for Drain<'_, T, N> {
         // SAFETY: We just checked that `self.remaining != 0`.
         let (front, back) = guard.0.as_slices();
         // since idx is a logical index, we don't need to worry about wrapping.
-        guard.0.idx += front.len();
-        guard.0.remaining -= front.len();
+        guard.0.idx += PtrLen::len(front);
+        guard.0.remaining -= PtrLen::len(front);
 
         ptr::drop_in_place(front);
         guard.0.remaining = 0;
@@ -346,3 +346,25 @@ impl<T, N: ArrayLength> DoubleEndedIterator for Drain<'_, T, N> {
 impl<T, N: ArrayLength> ExactSizeIterator for Drain<'_, T, N> {}
 
 impl<T, N: ArrayLength> FusedIterator for Drain<'_, T, N> {}
+
+trait PtrLen {
+  /// # Safety
+  /// - The pointer must be initialized and valid for reads.
+  unsafe fn len(self) -> usize;
+}
+
+#[rustversion::since(1.79)]
+impl<T> PtrLen for *mut [T] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  unsafe fn len(self) -> usize {
+    <*mut [T]>::len(self)
+  }
+}
+
+#[rustversion::before(1.79)]
+impl<T> PtrLen for *mut [T] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  unsafe fn len(self) -> usize {
+    (&*self).len()
+  }
+}

@@ -41,9 +41,9 @@ impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
 
     // Use only the front buffer if it is big enough to fill `buf`, else use
     // the back buffer too.
-    match buf.split_at_mut_checked(front.len()) {
+    match SplitAtMut::split_at_mut_checked(buf, front.len()) {
       None => buf.copy_from_slice(&front[..buf.len()]),
-      Some((buf_front, buf_back)) => match back.split_at_checked(buf_back.len()) {
+      Some((buf_front, buf_back)) => match SplitAt::split_at_checked(back, buf_back.len()) {
         Some((back, _)) => {
           buf_front.copy_from_slice(front);
           buf_back.copy_from_slice(back);
@@ -158,5 +158,69 @@ impl<N: ArrayLength> Write for GenericArrayDeque<u8, N> {
   #[inline]
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
+  }
+}
+
+trait SplitAt {
+  fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)>;
+}
+
+trait SplitAtMut {
+  fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)>;
+}
+
+#[rustversion::since(1.79)]
+impl<T> SplitAt for [T] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
+    <[T]>::split_at_checked(self, mid)
+  }
+}
+
+#[rustversion::before(1.79)]
+impl<T> SplitAt for [T] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
+    use core::slice::from_raw_parts;
+
+    if mid <= self.len() {
+      // SAFETY: `0 <= mid <= self.len()`
+      Some(unsafe {
+        (
+          from_raw_parts(self.as_ptr(), mid),
+          from_raw_parts(self.as_ptr().add(mid), len - mid),
+        )
+      })
+    } else {
+      None
+    }
+  }
+}
+
+#[rustversion::since(1.80)]
+impl<T> SplitAtMut for [T] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
+    <[T]>::split_at_mut_checked(self, mid)
+  }
+}
+
+#[rustversion::before(1.80)]
+impl<T> SplitAtMut for [T] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
+    use core::slice::from_raw_parts_mut;
+    if mid <= self.len() {
+      let len = self.len();
+      // SAFETY: `0 <= mid <= self.len()`, so the two slices do not overlap.
+      Some(unsafe {
+        (
+          from_raw_parts_mut(self.as_mut_ptr(), mid),
+          from_raw_parts_mut(self.as_mut_ptr().add(mid), len - mid),
+        )
+      })
+    } else {
+      None
+    }
   }
 }
