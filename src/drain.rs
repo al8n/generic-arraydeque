@@ -175,6 +175,7 @@ impl<T, N: ArrayLength> Drop for Drain<'_, T, N> {
         // since idx is a logical index, we don't need to worry about wrapping.
         guard.0.idx += front.len();
         guard.0.remaining -= front.len();
+
         ptr::drop_in_place(front);
         guard.0.remaining = 0;
         ptr::drop_in_place(back);

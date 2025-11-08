@@ -1066,7 +1066,7 @@ fn issue_80303() {
   assert_eq!(hash_code(vda), hash_code(vdb));
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg(all(any(feature = "alloc", feature = "std"), feature = "unstable"))]
 #[test]
 fn extract_if_test() {
   let mut m = GenericArrayDeque::<u32, U24>::try_from_exact_iter([1, 2, 3, 4, 5, 6]).unwrap();
@@ -1076,7 +1076,7 @@ fn extract_if_test() {
   assert_eq!(m, &[4, 5, 6]);
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg(all(any(feature = "alloc", feature = "std"), feature = "unstable"))]
 #[test]
 fn drain_to_empty_test() {
   let mut m = GenericArrayDeque::<u32, U24>::try_from_exact_iter([1, 2, 3, 4, 5, 6]).unwrap();
@@ -1086,6 +1086,7 @@ fn drain_to_empty_test() {
   assert_eq!(m, &[]);
 }
 
+#[cfg(feature = "unstable")]
 #[test]
 fn extract_if_empty() {
   let mut list = GenericArrayDeque::<usize, U4>::new();
@@ -1104,6 +1105,7 @@ fn extract_if_empty() {
   assert_eq!(list, vec![]);
 }
 
+#[cfg(feature = "unstable")]
 #[test]
 fn extract_if_zst() {
   let mut list = GenericArrayDeque::<_, U24>::try_from_exact_iter([(), (), (), (), ()]).unwrap();
@@ -1129,6 +1131,7 @@ fn extract_if_zst() {
   assert_eq!(list, vec![]);
 }
 
+#[cfg(feature = "unstable")]
 #[test]
 fn extract_if_false() {
   let mut list =
@@ -1154,6 +1157,7 @@ fn extract_if_false() {
   assert_eq!(list, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 }
 
+#[cfg(feature = "unstable")]
 #[test]
 fn extract_if_true() {
   let mut list =
@@ -1180,7 +1184,7 @@ fn extract_if_true() {
   assert_eq!(list, vec![]);
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg(all(any(feature = "alloc", feature = "std"), feature = "unstable"))]
 #[test]
 fn extract_if_non_contiguous() {
   use std::{vec, vec::Vec};
@@ -1208,7 +1212,7 @@ fn extract_if_non_contiguous() {
   );
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg(all(any(feature = "alloc", feature = "std"), feature = "unstable"))]
 #[test]
 fn extract_if_complex() {
   use std::{vec, vec::Vec};
@@ -1292,7 +1296,7 @@ fn extract_if_complex() {
   }
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "unstable"))]
 #[test]
 #[cfg_attr(not(panic = "unwind"), ignore = "test requires unwinding support")]
 fn extract_if_drop_panic_leak() {
@@ -1463,7 +1467,7 @@ fn extract_if_drop_panic_leak() {
   assert_eq!(d7.dropped(), 1);
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "unstable"))]
 #[test]
 #[cfg_attr(not(panic = "unwind"), ignore = "test requires unwinding support")]
 fn extract_if_pred_panic_leak() {
