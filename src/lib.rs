@@ -14,7 +14,7 @@ use core::{
   cmp::Ordering,
   fmt,
   hash::{Hash, Hasher},
-  iter::{Chain, Once, once, repeat_n, repeat_with},
+  iter::{once, repeat_n, repeat_with, Chain, Once},
   mem::{self, ManuallyDrop, MaybeUninit},
   ops::{self, Index, IndexMut, Range, RangeBounds},
   ptr, slice,
@@ -22,18 +22,23 @@ use core::{
 use generic_array::GenericArray;
 
 pub use extract_if::ExtractIf;
-pub use generic_array::{ArrayLength, typenum};
+pub use generic_array::{typenum, ArrayLength};
 pub use into_iter::IntoIter;
 pub use iter::Iter;
 pub use iter_mut::IterMut;
 
 mod drain;
+#[cfg(feature = "unstable")]
+#[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
 mod extract_if;
 mod into_iter;
 #[cfg(feature = "std")]
 mod io;
 mod iter;
 mod iter_mut;
+#[cfg(feature = "serde")]
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+mod serde;
 
 #[cfg(test)]
 mod tests;
@@ -83,7 +88,9 @@ impl<T: fmt::Debug, N: ArrayLength> fmt::Debug for GenericArrayDeque<T, N> {
   }
 }
 
-impl<T: PartialEq, N1: ArrayLength, N2: ArrayLength> PartialEq<GenericArrayDeque<T, N2>> for GenericArrayDeque<T, N1> {
+impl<T: PartialEq, N1: ArrayLength, N2: ArrayLength> PartialEq<GenericArrayDeque<T, N2>>
+  for GenericArrayDeque<T, N1>
+{
   fn eq(&self, other: &GenericArrayDeque<T, N2>) -> bool {
     if self.len != other.len() {
       return false;
@@ -374,7 +381,9 @@ where
   /// assert!(result.is_err());
   /// ```
   #[allow(clippy::type_complexity)]
-  pub fn try_from_iter<I: IntoIterator<Item = T>>(iter: I) -> Result<Self, (Self, Chain<Once<T>, I::IntoIter>)> {
+  pub fn try_from_iter<I: IntoIterator<Item = T>>(
+    iter: I,
+  ) -> Result<Self, (Self, Chain<Once<T>, I::IntoIter>)> {
     let mut deq = Self::new();
     let mut iterator = iter.into_iter();
     for idx in 0..N::USIZE {
@@ -2188,7 +2197,9 @@ where
   /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
   ///
   /// let mut buf = GenericArrayDeque::<i32, U10>::new();
-  /// buf.extend(1..5);
+  /// for value in 1..5 {
+  ///     assert!(buf.push_back(value).is_none());
+  /// }
   /// buf.retain(|&x| x % 2 == 0);
   /// assert_eq!(buf, [2, 4]);
   /// ```
@@ -2200,7 +2211,9 @@ where
   /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
   ///
   /// let mut buf = GenericArrayDeque::<i32, U10>::new();
-  /// buf.extend(1..6);
+  /// for value in 1..6 {
+  ///     assert!(buf.push_back(value).is_none());
+  /// }
   ///
   /// let keep = [false, true, true, false, true];
   /// let mut iter = keep.iter();
@@ -2226,7 +2239,9 @@ where
   /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
   ///
   /// let mut buf = GenericArrayDeque::<i32, U10>::new();
-  /// buf.extend(1..5);
+  /// for value in 1..5 {
+  ///     assert!(buf.push_back(value).is_none());
+  /// }
   /// buf.retain_mut(|x| if *x % 2 == 0 {
   ///     *x += 1;
   ///     true
@@ -2767,6 +2782,7 @@ where
   /// Assumes no wrapping around happens.
   /// Assumes capacity is sufficient.
   #[inline]
+  #[cfg(feature = "std")]
   unsafe fn write_iter(&mut self, dst: usize, iter: impl Iterator<Item = T>, written: &mut usize) {
     iter.enumerate().for_each(|(i, element)| unsafe {
       self.buffer_write(dst + i, element);
@@ -2782,6 +2798,7 @@ where
   ///
   /// Assumes that `iter` yields at most `len` items.
   /// Assumes capacity is sufficient.
+  #[cfg(feature = "std")]
   unsafe fn write_iter_wrapping(
     &mut self,
     dst: usize,

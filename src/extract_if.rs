@@ -27,10 +27,9 @@ where
   /// Using this method is equivalent to the following code:
   ///
   /// ```
-  /// # ![cfg(feature = "std")])]
-  /// # use generic_arraydeque::{GenericArrayDeque, typenum::U10};
+  /// # use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   /// # let some_predicate = |x: &mut i32| { *x % 2 == 1 };
-  /// # let mut deq: GenericArrayDeque<_, U10> = (0..10).collect();
+  /// # let mut deq = GenericArrayDeque::<_, U16>::try_from_iter(0..10).unwrap();
   /// # let mut deq2 = deq.clone();
   /// # let range = 1..5;
   /// let mut i = range.start;
@@ -67,25 +66,44 @@ where
   /// Splitting a deque into even and odd values, reusing the original deque:
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let mut numbers = GenericArrayDeque::from([1, 2, 3, 4, 5, 6, 8, 9, 11, 13, 14, 15]);
+  /// let mut numbers = GenericArrayDeque::<_, U16>::try_from_iter([
+  ///     1, 2, 3, 4, 5, 6, 8, 9, 11, 13, 14, 15,
+  /// ]).unwrap();
   ///
-  /// let evens = numbers.extract_if(.., |x| *x % 2 == 0).collect::<GenericArrayDeque<_>>();
+  /// let mut evens = GenericArrayDeque::<_, U16>::new();
+  /// numbers.extract_if(.., |x| *x % 2 == 0).for_each(|value| {
+  ///     assert!(evens.push_back(value).is_none());
+  /// });
   /// let odds = numbers;
   ///
-  /// assert_eq!(evens, GenericArrayDeque::from([2, 4, 6, 8, 14]));
-  /// assert_eq!(odds, GenericArrayDeque::from([1, 3, 5, 9, 11, 13, 15]));
+  /// assert_eq!(
+  ///     evens,
+  ///     GenericArrayDeque::<_, U16>::try_from_iter([2, 4, 6, 8, 14]).unwrap()
+  /// );
+  /// assert_eq!(
+  ///     odds,
+  ///     GenericArrayDeque::<_, U16>::try_from_iter([1, 3, 5, 9, 11, 13, 15]).unwrap()
+  /// );
   /// ```
   ///
   /// Using the range argument to only process a part of the deque:
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U10};
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
   ///
-  /// let mut items = GenericArrayDeque::from([0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2]);
-  /// let ones = items.extract_if(7.., |x| *x == 1).collect::<GenericArrayDeque<_>>();
-  /// assert_eq!(items, GenericArrayDeque::from([0, 0, 0, 0, 0, 0, 0, 2, 2, 2]));
+  /// let mut items = GenericArrayDeque::<_, U16>::try_from_iter([
+  ///     0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2,
+  /// ]).unwrap();
+  /// let mut ones = GenericArrayDeque::<_, U16>::new();
+  /// items.extract_if(7.., |x| *x == 1).for_each(|value| {
+  ///     assert!(ones.push_back(value).is_none());
+  /// });
+  /// assert_eq!(
+  ///     items,
+  ///     GenericArrayDeque::<_, U16>::try_from_iter([0, 0, 0, 0, 0, 0, 0, 2, 2, 2]).unwrap()
+  /// );
   /// assert_eq!(ones.len(), 3);
   /// ```
   pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, T, F, N>
@@ -107,8 +125,8 @@ where
 /// ```
 /// use generic_arraydeque::{ExtractIf, GenericArrayDeque, typenum::U3};
 ///
-/// let mut v = GenericArrayDeque::<_, U3>::try_from_array([0, 1, 2]);
-/// let iter: ExtractIf<'_, _, _> = v.extract_if(.., |x| *x % 2 == 0);
+/// let mut v = GenericArrayDeque::<_, U3>::try_from_array([0, 1, 2]).unwrap();
+/// let iter: ExtractIf<'_, _, _, U3> = v.extract_if(.., |x| *x % 2 == 0);
 /// ```
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct ExtractIf<'a, T, F, N: ArrayLength> {

@@ -1,13 +1,13 @@
 [package]
 name = "generic-arraydeque"
 version = "0.0.0"
-edition = "2024"
+edition = "2021"
 repository = "https://github.com/al8n/generic-arraydeque"
 homepage = "https://github.com/al8n/generic-arraydeque"
 documentation = "https://docs.rs/generic-arraydeque"
 description = "A template for creating Rust open-source repo on GitHub"
 license = "MIT OR Apache-2.0"
-rust-version = "1.85"
+rust-version = "1.65"
 
 [[bench]]
 path = "benches/foo.rs"
@@ -17,13 +17,18 @@ harness = false
 [features]
 default = ["std"]
 alloc = []
-std = ["auto_enums/default"]
+std = []
 
 unstable = []
+zeroize = ["generic-array/zeroize"]
+faster-hex = ["generic-array/faster-hex"]
+
+serde = ["dep:serde_core"]
 
 [dependencies]
-auto_enums = { version = "0.8", default-features = false }
 generic-array = { version = "1.3", default-features = false }
+
+serde_core = { version = "1.0", optional = true, default-features = false }
 
 [dev-dependencies]
 criterion = "0.7"
