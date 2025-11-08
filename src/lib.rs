@@ -1,8 +1,8 @@
-//! A template for creating Rust open-source repo on GitHub
+#![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
-// #![deny(missing_docs)]
+#![deny(missing_docs, warnings)]
 
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 extern crate alloc as std;
@@ -51,6 +51,91 @@ mod unstable;
 
 mod macros;
 
+/// A fixed-capacity, stack-allocated double-ended queue (deque) backed by [`GenericArray`].
+///
+/// `GenericArrayDeque` provides a ring buffer implementation with O(1) insertion and removal
+/// at both ends. Unlike [`std::collections::VecDeque`], it has a compile-time fixed capacity
+/// and is entirely stack-allocated, making it suitable for `no_std` environments and
+/// performance-critical code where heap allocation should be avoided.
+///
+/// # Capacity
+///
+/// The capacity is fixed at compile time and cannot be changed. Attempting to push elements
+/// beyond the capacity will return the element back without inserting it.
+///
+/// ## Examples
+///
+/// Basic usage:
+///
+/// ```rust
+/// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+///
+/// // Create a deque with capacity 8
+/// let mut deque = GenericArrayDeque::<i32, U8>::new();
+///
+/// // Add elements to the back
+/// assert!(deque.push_back(1).is_none());
+/// assert!(deque.push_back(2).is_none());
+///
+/// // Add elements to the front
+/// assert!(deque.push_front(0).is_none());
+///
+/// assert_eq!(deque.len(), 3);
+/// assert_eq!(deque[0], 0);
+/// assert_eq!(deque[1], 1);
+/// assert_eq!(deque[2], 2);
+///
+/// // Remove elements
+/// assert_eq!(deque.pop_front(), Some(0));
+/// assert_eq!(deque.pop_back(), Some(2));
+/// assert_eq!(deque.len(), 1);
+/// ```
+///
+/// Using as a ring buffer:
+///
+/// ```rust
+/// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+///
+/// let mut buffer = GenericArrayDeque::<_, U4>::new();
+///
+/// // Fill the buffer
+/// for i in 0..4 {
+///     assert!(buffer.push_back(i).is_none());
+/// }
+///
+/// assert_eq!(buffer.len(), 4);
+/// assert!(buffer.is_full());
+///
+/// // Attempting to push when full returns the element
+/// assert_eq!(buffer.push_back(100), Some(100));
+///
+/// // Remove and add to maintain size
+/// buffer.pop_front();
+/// buffer.push_back(4);
+/// ```
+///
+/// Iterating over elements:
+///
+/// ```rust
+/// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+///
+/// let mut deque = GenericArrayDeque::<_, U8>::new();
+/// deque.push_back(1);
+/// deque.push_back(2);
+/// deque.push_back(3);
+///
+/// let sum: i32 = deque.iter().sum();
+/// assert_eq!(sum, 6);
+///
+/// // Mutable iteration
+/// for item in deque.iter_mut() {
+///     *item *= 2;
+/// }
+/// assert_eq!(deque.iter().sum::<i32>(), 12);
+/// ```
+///
+/// [`std::collections::VecDeque`]: https://doc.rust-lang.org/std/collections/struct.VecDeque.html
+/// [`GenericArray`]: https://docs.rs/generic-array/latest/generic_array/struct.GenericArray.html
 pub struct GenericArrayDeque<T, N>
 where
   N: ArrayLength,

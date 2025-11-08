@@ -3,7 +3,7 @@
 </div>
 <div align="center">
 
-A template for creating Rust open-source GitHub repo.
+A fixed-capacity, stack-allocated double-ended queue (deque) backed by `generic-array`.
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/generic--arraydeque-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 <img alt="LoC" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fal8n%2F327b2a8aef9003246e45c6e47fe63937%2Fraw%2Fgeneric-arraydeque" height="22">
@@ -19,6 +19,26 @@ English | [简体中文][zh-cn-url]
 
 </div>
 
+## Features
+
+- **Fixed Capacity**: Type-level capacity using `generic-array`, all elements live on the stack
+- **No Heap Allocation**: Perfect for embedded systems and `no_std` environments
+- **Double-Ended**: Efficient push/pop from both ends of the queue
+- **Efficient Iteration**: Support for various iterator types including drain and extract_if
+- **Rich API**: Similar interface to `std::collections::VecDeque` but with fixed capacity
+- **Serde Support**: Optional serialization/deserialization support
+- **I/O Support**: `Read` and `Write` trait implementations (with `std` feature)
+
+## Implementation Notes
+
+Most of the code in this crate is adapted from Rust's standard library [`VecDeque`](https://doc.rust-lang.org/std/collections/struct.VecDeque.html), modified to work with:
+
+- **Fixed-capacity storage** using `generic-array` instead of heap allocation
+- **`const` contexts** where possible, enabling compile-time initialization and evaluation
+- **`no_std` environments** without requiring an allocator
+
+The API closely mirrors `std::collections::VecDeque` to provide familiarity, while the implementation is optimized for stack-allocated, fixed-size use cases.
+
 ## Installation
 
 ```toml
@@ -26,17 +46,154 @@ English | [简体中文][zh-cn-url]
 generic-arraydeque = "0.1"
 ```
 
-## Features
-- [x] Create a Rust open-source repo fast 
+## Feature Flags
 
-#### License
+- `std` (default): Enable standard library support, including `Vec` conversions and I/O traits
+- `alloc`: Enable allocator support for `Vec` conversions without full `std`
+- `serde`: Enable `Serde` serialization/deserialization support
+- `unstable`: Enable unstable features (requires nightly Rust):
+  - `pop_front_if` - Conditionally pop from front based on predicate
+  - `pop_back_if` - Conditionally pop from back based on predicate
+  - `push_back_mut` - Push to back and return mutable reference
+  - `push_front_mut` - Push to front and return mutable reference
+  - `truncate_front` - Truncate elements from the front
+  - `insert_mut` - Insert element and return mutable reference
+  - `extend_from_within` - Clone and extend from a range within the deque (requires `T: Clone`)
+  - `prepend_from_within` - Clone and prepend from a range within the deque (requires `T: Clone`)
+  - `extract_if` - Iterator that extracts elements matching a predicate
+- `zeroize`: Enable `Zeroize` support for secure memory clearing
+- `faster-hex`: Enable faster hex encoding/decoding
+
+## Why Use `GenericArrayDeque`?
+
+- **Embedded Systems**: No heap allocation required, perfect for memory-constrained environments
+- **Real-Time Systems**: Predictable performance without allocator overhead
+- **Fixed-Size Buffers**: When you know the maximum capacity at compile-time
+- **Type Safety**: Capacity is part of the type, catching errors at compile-time
+- **Performance**: Stack allocation is faster than heap allocation
+
+## Usage
+
+### Basic Example
+
+```rust
+use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+
+// Create a deque with capacity of 8 elements
+let mut deque = GenericArrayDeque::<u32, U8>::new();
+
+// Push elements to the back
+deque.push_back(1);
+deque.push_back(2);
+deque.push_back(3);
+
+// Push elements to the front
+deque.push_front(0);
+
+// Pop from both ends
+assert_eq!(deque.pop_front(), Some(0));
+assert_eq!(deque.pop_back(), Some(3));
+
+assert_eq!(deque.len(), 2);
+```
+
+### Working with Capacity
+
+```rust
+use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+
+let mut deque = GenericArrayDeque::<i32, U4>::new();
+
+// Try to push - returns overflow value if full
+assert_eq!(deque.push_back(1), None);
+assert_eq!(deque.push_back(2), None);
+assert_eq!(deque.push_back(3), None);
+assert_eq!(deque.push_back(4), None);
+
+// Deque is full
+assert_eq!(deque.push_back(5), Some(5)); // Returns the value that couldn't be pushed
+
+// Check capacity
+assert_eq!(deque.capacity(), 4);
+assert_eq!(deque.len(), 4);
+assert_eq!(deque.remaining_capacity(), 0);
+assert!(deque.is_full());
+```
+
+### Creating from Iterators
+
+```rust
+use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+
+// From an array
+let deque = GenericArrayDeque::<u32, U4>::try_from_array([1, 2, 3, 4]).unwrap();
+assert_eq!(deque.len(), 4);
+
+// From an iterator
+let deque = GenericArrayDeque::<u32, U4>::try_from_iter(0..3).unwrap();
+assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![0, 1, 2]);
+
+// From an exact size iterator
+let deque = GenericArrayDeque::<u32, U4>::try_from_exact_iter(0..4).unwrap();
+assert_eq!(deque.len(), 4);
+```
+
+### Iteration
+
+```rust
+use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+
+let mut deque = GenericArrayDeque::<u32, U4>::try_from_iter(1..=4).unwrap();
+
+// Iterate by reference
+for value in &deque {
+    println!("{}", value);
+}
+
+// Iterate mutably
+for value in &mut deque {
+    *value *= 2;
+}
+
+// Consume into iterator
+for value in deque {
+    println!("{}", value);
+}
+```
+
+### Accessing Elements
+
+```rust
+use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+
+let mut deque = GenericArrayDeque::<u32, U4>::try_from_iter(10..14).unwrap();
+
+// Index access
+assert_eq!(deque[0], 10);
+assert_eq!(deque[3], 13);
+
+// Get element
+assert_eq!(deque.get(1), Some(&11));
+assert_eq!(deque.get(10), None);
+
+// Get front and back
+assert_eq!(deque.front(), Some(&10));
+assert_eq!(deque.back(), Some(&13));
+
+// Get slices (may be split into two contiguous slices)
+let (first, second) = deque.as_slices();
+```
+
+## License
 
 `generic-arraydeque` is under the terms of both the MIT license and the
 Apache License (Version 2.0).
 
 See [LICENSE-APACHE](LICENSE-APACHE), [LICENSE-MIT](LICENSE-MIT) for details.
 
-Copyright (c) 2021 Al Liu.
+Copyright (c) 2025 Al Liu
+
+Copyright (c) 2010 The Rust Project Developers
 
 [Github-url]: https://github.com/al8n/generic-arraydeque/
 [CI-url]: https://github.com/al8n/generic-arraydeque/actions/workflows/ci.yml
