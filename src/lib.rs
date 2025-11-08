@@ -967,7 +967,8 @@ where
   /// assert_eq!(v, [42, 10, 24, 1]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
+  #[rustversion::attr(since(1.83), const)]
+  pub fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
     let (a_range, b_range) = self.slice_full_ranges();
     // SAFETY: `slice_full_ranges` always returns valid ranges into
     // the physical buffer.
@@ -1415,7 +1416,8 @@ where
   /// assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn rotate_left(&mut self, n: usize) {
+  #[rustversion::attr(since(1.83), const)]
+  pub fn rotate_left(&mut self, n: usize) {
     assert!(n <= self.len());
     let k = self.len - n;
     if n <= k {
@@ -1461,7 +1463,8 @@ where
   /// assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn rotate_right(&mut self, n: usize) {
+  #[rustversion::attr(since(1.83), const)]
+  pub fn rotate_right(&mut self, n: usize) {
     assert!(n <= self.len());
     let k = self.len - n;
     if n <= k {
@@ -2173,7 +2176,8 @@ where
   /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec!['a', 'd', 'b', 'c', 'e']);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn insert(&mut self, index: usize, value: T) -> Option<T> {
+  #[rustversion::attr(since(1.85), const)]
+  pub fn insert(&mut self, index: usize, value: T) -> Option<T> {
     if index > self.len() || self.is_full() {
       return Some(value);
     }
@@ -2204,7 +2208,8 @@ where
   #[must_use = "if you don't need a reference to the value, use `GenericArrayDeque::insert` instead"]
   #[cfg(feature = "unstable")]
   #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
-  pub const fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
+  #[rustversion::attr(since(1.85), const)]
+  pub fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
     if index > self.len() || self.is_full() {
       return Err(value);
     }
@@ -2232,7 +2237,8 @@ where
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec!['a', 'c']);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn remove(&mut self, index: usize) -> Option<T> {
+  #[rustversion::attr(since(1.83), const)]
+  pub fn remove(&mut self, index: usize) -> Option<T> {
     if self.len <= index {
       return None;
     }
@@ -2635,7 +2641,8 @@ where
     }
   }
 
-  const unsafe fn rotate_left_inner(&mut self, mid: usize) {
+  #[rustversion::attr(since(1.83), const)]
+  unsafe fn rotate_left_inner(&mut self, mid: usize) {
     debug_assert!(mid * 2 <= self.len());
     unsafe {
       self.wrap_copy(self.head, self.to_physical_idx(self.len), mid);
@@ -2643,7 +2650,8 @@ where
     self.head = self.to_physical_idx(mid);
   }
 
-  const unsafe fn rotate_right_inner(&mut self, k: usize) {
+  #[rustversion::attr(since(1.83), const)]
+  unsafe fn rotate_right_inner(&mut self, k: usize) {
     debug_assert!(k * 2 <= self.len());
     self.head = self.wrap_sub(self.head, k);
     unsafe {
