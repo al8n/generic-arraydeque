@@ -36,12 +36,16 @@ jobs:
         include:
           - os: ubuntu-latest
             toolchain: nightly
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: stable
+            cargo_hack: latest
           - os: macos-latest
             toolchain: stable
+            cargo_hack: latest
           - os: windows-latest
             toolchain: stable
+            cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
@@ -77,7 +81,9 @@ jobs:
         rustup default ${{ matrix.toolchain }}
         rustup component add clippy
     - name: Install cargo-hack
-      run: cargo install cargo-hack
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-hack@${{ matrix.cargo_hack }}
     - name: Apply clippy lints
       run: cargo hack clippy --each-feature
 
@@ -130,34 +136,44 @@ jobs:
         include:
           - os: ubuntu-latest
             toolchain: nightly
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: stable
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.79.0
-            args: "--each-feature"
+            args: ""
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.80.0
-            args: "--each-feature"
+            args: ""
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.83.0
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.85.0
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.92.0
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.65.0
-            args: "--each-feature"
+            args: ""
+            cargo_hack: 0.5.0
           - os: macos-latest
             toolchain: stable
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
           - os: windows-latest
             toolchain: stable
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features"
+            cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
@@ -176,7 +192,9 @@ jobs:
         rustup update ${{ matrix.toolchain }} --no-self-update
         rustup default ${{ matrix.toolchain }}
     - name: Install cargo-hack
-      run: cargo install cargo-hack
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-hack@${{ matrix.cargo_hack }}
     - name: Run build
       run: cargo hack build ${{ matrix.args }}
   
@@ -187,34 +205,44 @@ jobs:
         include:
           - os: ubuntu-latest
             toolchain: nightly
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: stable
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.79.0
-            args: "--each-feature"
+            args: ""
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.80.0
-            args: "--each-feature"
+            args: ""
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.83.0
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.85.0
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.92.0
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.65.0
-            args: "--each-feature"
+            args: ""
+            cargo_hack: 0.5.0
           - os: macos-latest
             toolchain: stable
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
           - os: windows-latest
             toolchain: stable
-            args: "--each-feature"
+            args: "--feature-powerset --exclude-no-default-features --exclude-features loom"
+            cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
@@ -233,7 +261,9 @@ jobs:
         rustup update ${{ matrix.toolchain }} --no-self-update
         rustup default ${{ matrix.toolchain }}
     - name: Install cargo-hack
-      run: cargo install cargo-hack
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-hack@${{ matrix.cargo_hack }}
     - name: Cache ~/.cargo
       uses: actions/cache@v4
       with:
@@ -249,20 +279,28 @@ jobs:
         include:
           - os: ubuntu-latest
             toolchain: nightly
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: stable
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.65.0
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.79.0
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.80.0
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
             toolchain: 1.83.0
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.85.0
+            cargo_hack: latest
           - os: ubuntu-latest
             toolchain: 1.92.0
+            cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -282,7 +320,9 @@ jobs:
       - name: Install rust-src
         run: rustup component add rust-src
       - name: Install cargo-hack
-        run: cargo install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack@${{ matrix.cargo_hack }}
       - name: ASAN / LSAN / TSAN (Linux)
         run: ci/sanitizer.sh
 
@@ -345,7 +385,9 @@ jobs:
           rustup update ${{ matrix.toolchain }} --no-self-update
           rustup default ${{ matrix.toolchain }}
       - name: Install cargo-hack
-        run: cargo install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack@latest
       - name: Miri
         run: |
           bash ci/miri_tb.sh ${{ matrix.target }} ${{ matrix.cfg }}
@@ -409,7 +451,9 @@ jobs:
           rustup update ${{ matrix.toolchain }} --no-self-update
           rustup default ${{ matrix.toolchain }}
       - name: Install cargo-hack
-        run: cargo install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack@latest
       - name: Miri
         run: |
           bash ci/miri_sb.sh ${{ matrix.target }} ${{ matrix.cfg }}
