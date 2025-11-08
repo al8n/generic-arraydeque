@@ -85,16 +85,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
     if self.is_full() {
       Err(value)
     } else {
-      let len = self.len;
-      self.len += 1;
-      let idx = self.to_physical_idx(len);
-
-      // SAFETY: idx is guaranteed to be in-bounds and uninitialized
-      unsafe {
-        let ptr = &mut *self.ptr_mut().add(idx);
-        ptr.write(value);
-        Ok(ptr.assume_init_mut())
-      }
+      Ok(unsafe { push_back_unchecked!(self(value)).assume_init_mut() })
     }
   }
 
@@ -120,14 +111,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
     if self.is_full() {
       Err(value)
     } else {
-      self.head = self.wrap_sub(self.head, 1);
-      self.len += 1;
-      // SAFETY: head is guaranteed to be in-bounds and uninitialized
-      unsafe {
-        let ptr = &mut *self.ptr_mut().add(self.head);
-        ptr.write(value);
-        Ok(ptr.assume_init_mut())
-      }
+      Ok(unsafe { push_front_unchecked!(self(value)).assume_init_mut() })
     }
   }
 

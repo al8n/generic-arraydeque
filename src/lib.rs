@@ -20,7 +20,7 @@ use core::{
   ptr, slice,
 };
 use generic_array::GenericArray;
-use macros::insert;
+use macros::*;
 
 pub use generic_array::{typenum, ArrayLength};
 pub use into_iter::IntoIter;
@@ -770,6 +770,7 @@ where
   /// ```
   #[inline]
   #[must_use = "use `.truncate()` if you don't need the other half"]
+  #[rustversion::attr(since(1.83), const)]
   pub fn split_off(&mut self, at: usize) -> Self {
     let len = self.len;
     assert!(at <= len, "`at` out of bounds");
@@ -1122,16 +1123,8 @@ where
     if self.is_full() {
       Some(value)
     } else {
-      let len = self.len;
-      self.len += 1;
-      let idx = self.to_physical_idx(len);
-
-      // SAFETY: idx is guaranteed to be in-bounds and uninitialized
-      unsafe {
-        let ptr = &mut *self.ptr_mut().add(idx);
-        ptr.write(value);
-        None
-      }
+      let _ = unsafe { push_back_unchecked!(self(value)) };
+      None
     }
   }
 
@@ -1216,14 +1209,8 @@ where
     if self.is_full() {
       Some(value)
     } else {
-      self.head = self.wrap_sub(self.head, 1);
-      self.len += 1;
-      // SAFETY: head is guaranteed to be in-bounds and uninitialized
-      unsafe {
-        let ptr = &mut *self.ptr_mut().add(self.head);
-        ptr.write(value);
-        None
-      }
+      let _ = unsafe { push_front_unchecked!(self(value)) };
+      None
     }
   }
 

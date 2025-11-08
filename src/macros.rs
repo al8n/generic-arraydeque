@@ -27,4 +27,31 @@ macro_rules! insert {
   }};
 }
 
+macro_rules! push_back_unchecked {
+  ($this:ident($value:ident)) => {{
+    let len = $this.len;
+    $this.len += 1;
+    let idx = $this.to_physical_idx(len);
+
+    // SAFETY: idx is guaranteed to be in-bounds and uninitialized
+
+    let ptr = &mut *$this.ptr_mut().add(idx);
+    ptr.write($value);
+    ptr
+  }};
+}
+
+macro_rules! push_front_unchecked {
+  ($this:ident($value:ident)) => {{
+    $this.head = $this.wrap_sub($this.head, 1);
+    $this.len += 1;
+    // SAFETY: head is guaranteed to be in-bounds and uninitialized
+    let ptr = &mut *$this.ptr_mut().add($this.head);
+    ptr.write($value);
+    ptr
+  }};
+}
+
 pub(super) use insert;
+pub(super) use push_back_unchecked;
+pub(super) use push_front_unchecked;
