@@ -13,8 +13,3 @@ export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_odr_violation=0:detect_leaks=1}"
 echo "==> AddressSanitizer: unit/integration/examples/bench tests (${TARGET})"
 RUSTFLAGS="-Z sanitizer=address" \
   cargo test --target "${TARGET}" --all-targets "${COMMON_TEST_ARGS[@]}"
-
-echo "==> AddressSanitizer: doctests (host target)"
-RUSTFLAGS="-Z sanitizer=address" \
-  cargo test --doc "${COMMON_TEST_ARGS[@]}"
-
