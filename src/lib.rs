@@ -42,7 +42,7 @@ mod iter_mut;
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 mod serde;
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "std", feature = "alloc")))]
 mod heap_tests;
 #[cfg(test)]
 mod tests;
