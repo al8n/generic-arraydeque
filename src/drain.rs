@@ -348,6 +348,7 @@ impl<T, N: ArrayLength> ExactSizeIterator for Drain<'_, T, N> {}
 impl<T, N: ArrayLength> FusedIterator for Drain<'_, T, N> {}
 
 trait PtrLen {
+  #[allow(unstable_name_collisions)]
   /// # Safety
   /// - The pointer must be initialized and valid for reads.
   unsafe fn len(self) -> usize;
@@ -355,6 +356,7 @@ trait PtrLen {
 
 #[rustversion::since(1.79)]
 impl<T> PtrLen for *mut [T] {
+  #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   unsafe fn len(self) -> usize {
     <*mut [T]>::len(self)
@@ -363,6 +365,7 @@ impl<T> PtrLen for *mut [T] {
 
 #[rustversion::before(1.79)]
 impl<T> PtrLen for *mut [T] {
+  #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   unsafe fn len(self) -> usize {
     (&*self).len()
