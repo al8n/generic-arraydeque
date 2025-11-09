@@ -224,6 +224,8 @@ mod tests {
   #[rustversion::since(1.70)]
   #[test]
   fn default_is_empty() {
+    use super::Iter;
+
     let iter: Iter<'static, u8> = Default::default();
     assert_eq!(iter.len(), 0);
     assert_eq!(iter.size_hint(), (0, Some(0)));

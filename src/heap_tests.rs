@@ -1,6 +1,10 @@
 use super::*;
 use generic_array::typenum::*;
-use std::{string::{String, ToString}, vec, vec::Vec};
+use std::{
+  string::{String, ToString},
+  vec,
+  vec::Vec,
+};
 
 fn s<T: ToString>(value: T) -> String {
   value.to_string()

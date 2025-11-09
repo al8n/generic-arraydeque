@@ -179,7 +179,6 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-  use super::IterMut;
   use crate::{typenum::U5, GenericArrayDeque};
 
   #[test]
@@ -267,6 +266,8 @@ mod tests {
   #[rustversion::since(1.70)]
   #[test]
   fn default_is_empty() {
+    use super::IterMut;
+
     let iter: IterMut<'static, u8> = Default::default();
     assert_eq!(iter.len(), 0);
     assert_eq!(iter.size_hint(), (0, Some(0)));
