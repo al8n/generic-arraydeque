@@ -471,7 +471,7 @@ jobs:
         working-directory: integration-bin
       # Compile tests
       - name: cargo build integration-bin (debug)
-        run: cargo build integration-bin
+        run: cargo build
         working-directory: integration-bin
 
       # Run with valgrind
