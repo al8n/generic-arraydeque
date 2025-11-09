@@ -50,6 +50,70 @@ Most of the code in this crate is adapted from Rust's standard library [`VecDequ
 
 The API closely mirrors `std::collections::VecDeque` to provide familiarity, while the implementation is optimized for stack-allocated, fixed-size use cases.
 
+### Why Type-Level Capacity Instead of Const Generics?
+
+While Rust's const generics (`const N: usize`) might seem like a natural choice for specifying capacity, `GenericArrayDeque` uses type-level numbers from the [`typenum`](https://docs.rs/typenum) crate instead. This design choice enables powerful compile-time patterns that aren't possible with const generics, particularly in trait definitions.
+
+**Real-World Example: Syntax Error Tracking**
+
+Consider a trait that defines syntax elements with compile-time known component counts:
+
+```rust
+use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U3}};
+
+trait Syntax {
+    type Component;
+    type ComponentCount: generic_arraydeque::ArrayLength;
+
+    // Each implementation can specify a different capacity at the type level
+    fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::ComponentCount>;
+}
+
+// An if-statement has 3 components
+struct IfStatement;
+impl Syntax for IfStatement {
+    type Component = &'static str;
+    type ComponentCount = U3;  // Type-level 3
+
+    fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
+        // Can be initialized in const context
+        static COMPONENTS: GenericArrayDeque<&'static str, U3> = {
+            let mut deque = GenericArrayDeque::new();
+            // In a const context, populate the deque...
+            deque
+        };
+        &COMPONENTS
+    }
+}
+
+// A while-loop has 2 components
+struct WhileLoop;
+impl Syntax for WhileLoop {
+    type Component = &'static str;
+    type ComponentCount = U2;  // Type-level 2
+
+    fn possible_components() -> &'static GenericArrayDeque<Self::Component, U2> {
+        static COMPONENTS: GenericArrayDeque<&'static str, U2> = {
+            let mut deque = GenericArrayDeque::new();
+            deque
+        };
+        &COMPONENTS
+    }
+}
+```
+
+**Why This Requires Type-Level Capacity:**
+
+1. **Trait-Level Abstraction**: Each implementor of `Syntax` needs a different capacity, but the capacity must be part of the type system. With `const N: usize`, you can't easily express "each implementation has its own compile-time capacity" in the trait.
+
+2. **Const Context Initialization**: The deques need to be initialized in `const` or `static` contexts. Type-level numbers work seamlessly with `const fn` and generic contexts where the capacity is part of the type.
+
+3. **Zero Runtime Overhead**: The capacity is resolved entirely at compile time as part of type checking. There's no runtime representation of the capacity value.
+
+4. **Future-Proof**: As Rust's const generics mature, there may be migration paths, but for now, type-level numbers provide the necessary expressiveness for these patterns.
+
+This pattern is used in production code for parsing error tracking, where syntax definitions need fixed-capacity collections initialized at compile time with different sizes per syntax element.
+
 ## Installation
 
 ```toml

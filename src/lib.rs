@@ -22,7 +22,7 @@ use core::{
 use generic_array::GenericArray;
 use macros::*;
 
-pub use generic_array::{typenum, ArrayLength};
+pub use generic_array::{typenum, ArrayLength, ConstArrayLength, IntoArrayLength};
 pub use into_iter::IntoIter;
 pub use iter::Iter;
 pub use iter_mut::IterMut;
@@ -50,6 +50,14 @@ mod tests;
 mod unstable;
 
 mod macros;
+
+/// [`GenericArrayDeque`] with a const-generic `usize` length, using the [`ConstArrayLength`] type alias for `N`.
+///
+/// To construct from a literal array, use [`from_array`](GenericArrayDeque::from_array).
+///
+/// Note that not all `N` values are valid due to limitations inherent to `typenum` and Rust. You
+/// may need to combine [Const] with other typenum operations to get the desired length.
+pub type ConstGenericArrayDeque<T, const N: usize> = GenericArrayDeque<T, ConstArrayLength<N>>;
 
 /// A fixed-capacity, stack-allocated double-ended queue (deque) backed by [`GenericArray`].
 ///
@@ -361,11 +369,20 @@ const _: () = {
     /// ```
     /// use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U4}};
     ///
+    /// # use std::string::String;
+    ///
     /// let deque = GenericArrayDeque::<u32, U4>::try_from_vec(vec![1, 2]).unwrap();
     /// assert_eq!(deque.len(), 2);
     ///
     /// let result = GenericArrayDeque::<u32, U2>::try_from_vec(vec![1, 2, 3]);
     /// assert!(result.is_err());
+    ///
+    /// let deque = GenericArrayDeque::<String, U4>::try_from_vec(vec![String::from("1"), String::from("2"), String::from("3")]).unwrap();
+    /// assert_eq!(deque.len(), 3);
+    ///
+    /// assert_eq!(deque[0].as_str(), "1");
+    /// assert_eq!(deque[1].as_str(), "2");
+    /// assert_eq!(deque[2].as_str(), "3");
     /// ```
     #[cfg(any(feature = "std", feature = "alloc"))]
     #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
@@ -373,13 +390,27 @@ const _: () = {
       if vec.len() > N::USIZE {
         return Err(vec);
       }
-      let mut deq = Self::new();
-      // SAFETY: We have already checked that the length of the vec is less than or equal to the capacity of the deque.
+
+      let mut vec = ManuallyDrop::new(vec);
+      let ptr = vec.as_mut_ptr();
+      let len = vec.len();
+      let cap = vec.capacity();
+
+      let mut deq = GenericArray::uninit();
+      // SAFETY: capacity check above guarantees `len <= N::USIZE`, so the
+      // destination buffer is large enough. Elements are copied into
+      // `MaybeUninit<T>` storage and considered initialized immediately after.
       unsafe {
-        ptr::copy_nonoverlapping(vec.as_ptr(), deq.ptr_mut() as _, vec.len());
+        ptr::copy_nonoverlapping(ptr, deq.as_mut_slice().as_mut_ptr() as *mut T, len);
+        // Reclaim the original allocation without dropping the moved elements.
+        drop(Vec::from_raw_parts(ptr, 0, cap));
       }
-      deq.len = vec.len();
-      Ok(deq)
+
+      Ok(Self {
+        array: deq,
+        head: 0,
+        len,
+      })
     }
   }
 
@@ -423,6 +454,92 @@ where
       array: GenericArray::uninit(),
       head: 0,
       len: 0,
+    }
+  }
+
+  /// Convert a native array into `GenericArray` of the same length and type.
+  ///
+  /// This is equivalent to using the standard [`From`]/[`Into`] trait methods, but avoids
+  /// constructing an intermediate `GenericArray`.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// # #[cfg(feature = "std")] {
+  ///
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  /// use std::string::String;
+  ///
+  /// let deque = GenericArrayDeque::<String, U4>::from_array(["10".to_string(), "20".to_string(), "30".to_string(), "40".to_string()]);
+  /// assert_eq!(deque.len(), 4);
+  /// assert_eq!(deque[0].as_str(), "10");
+  /// assert_eq!(deque[1].as_str(), "20");
+  /// assert_eq!(deque[2].as_str(), "30");
+  /// assert_eq!(deque[3].as_str(), "40");
+  /// # }
+  /// ```
+  #[inline(always)]
+  #[rustversion::attr(since(1.71), const)]
+  pub fn from_array<const U: usize>(array: [T; U]) -> Self
+  where
+    typenum::Const<U>: IntoArrayLength<ArrayLength = N>,
+  {
+    let ptr = array.as_ptr();
+    mem::forget(array);
+    Self {
+      array: GenericArray::from_array(unsafe { ptr.cast::<[MaybeUninit<T>; U]>().read() }),
+      head: 0,
+      len: U,
+    }
+  }
+
+  /// Tries to create a deque from an array.
+  ///
+  /// If the array contains more elements than the capacity of the deque,
+  /// the array will be returned as an `Err` value.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use generic_arraydeque::{GenericArrayDeque, typenum::{U4, U2}};
+  ///
+  /// let deque = GenericArrayDeque::<u32, U4>::try_from_array([1, 2, 3, 4]).unwrap();
+  /// assert_eq!(deque.len(), 4);
+  ///
+  /// let err = GenericArrayDeque::<u32, U2>::try_from_array([1, 2, 3]);
+  /// assert!(err.is_err());
+  ///
+  /// # #[cfg(feature = "std")] {
+  /// # use std::string::String;
+  /// let deque = GenericArrayDeque::<String, U4>::try_from_array([
+  ///    "one".to_string(),
+  ///    "two".to_string(),
+  /// ]).unwrap();
+  ///
+  /// assert_eq!(deque.len(), 2);
+  /// assert_eq!(deque[0].as_str(), "one");
+  /// assert_eq!(deque[1].as_str(), "two");
+  /// # }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[rustversion::attr(since(1.83), const)]
+  pub fn try_from_array<const SIZE: usize>(arr: [T; SIZE]) -> Result<Self, [T; SIZE]> {
+    if SIZE > N::USIZE {
+      return Err(arr);
+    }
+
+    let ptr = arr.as_ptr();
+    mem::forget(arr);
+
+    // SAFETY: We have already checked that the length of the array is less than or equal to the capacity of the deque.
+    unsafe {
+      let mut array = GenericArray::uninit();
+      ptr::copy_nonoverlapping(ptr, array.as_mut_slice().as_mut_ptr() as _, SIZE);
+      Ok(Self {
+        array,
+        head: 0,
+        len: SIZE,
+      })
     }
   }
 
@@ -600,35 +717,6 @@ where
       }
     }
     deq
-  }
-
-  /// Tries to create a deque from an array.
-  ///
-  /// If the array contains more elements than the capacity of the deque,
-  /// the array will be returned as an `Err` value.
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::{U4, U2}};
-  ///
-  /// let deque = GenericArrayDeque::<u32, U4>::try_from_array([1, 2, 3, 4]).unwrap();
-  /// assert_eq!(deque.len(), 4);
-  ///
-  /// let err = GenericArrayDeque::<u32, U2>::try_from_array([1, 2, 3]);
-  /// assert!(err.is_err());
-  /// ```
-  pub fn try_from_array<const SIZE: usize>(arr: [T; SIZE]) -> Result<Self, [T; SIZE]> {
-    if SIZE > N::USIZE {
-      return Err(arr);
-    }
-    let mut deq = Self::new();
-    // SAFETY: We have already checked that the length of the array is less than or equal to the capacity of the deque.
-    unsafe {
-      ptr::copy_nonoverlapping(arr.as_ptr(), deq.ptr_mut() as _, SIZE);
-    }
-    deq.len = SIZE;
-    Ok(deq)
   }
 
   /// Returns the capacity of the deque.
