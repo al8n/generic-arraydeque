@@ -5,6 +5,7 @@ use generic_array::typenum::*;
 
 use super::*;
 
+#[allow(unused_macros)]
 #[cfg(feature = "std")]
 macro_rules! struct_with_counted_drop {
     ($struct_name:ident $(( $( $elt_ty:ty ),+ ))?, $drop_counter:ident $( => $drop_stmt:expr )? ) => {
