@@ -1243,7 +1243,7 @@ where
   /// assert_eq!(d.pop_front(), None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.81), const)]
+  #[rustversion::attr(since(1.83), const)]
   pub fn pop_front(&mut self) -> Option<T> {
     if self.is_empty() {
       None
@@ -1273,7 +1273,7 @@ where
   /// assert_eq!(buf.pop_back(), Some(3));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.81), const)]
+  #[rustversion::attr(since(1.83), const)]
   pub fn pop_back(&mut self) -> Option<T> {
     if self.is_empty() {
       None
