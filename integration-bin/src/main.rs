@@ -5,11 +5,11 @@ use std::{cell::RefCell, rc::Rc};
 struct DropTracker {
   id: String,
   payload: String,
-  log: Rc<RefCell<Vec<i32>>>,
+  log: Rc<RefCell<Vec<String>>>,
 }
 
 impl DropTracker {
-  fn new(log: &Rc<RefCell<Vec<i32>>>, id: i32) -> Self {
+  fn new(log: &Rc<RefCell<Vec<String>>>, id: i32) -> Self {
     Self {
       id: id.to_string(),
       payload: format!("payload-{id}"),
@@ -20,10 +20,7 @@ impl DropTracker {
 
 impl Drop for DropTracker {
   fn drop(&mut self) {
-    self
-      .log
-      .borrow_mut()
-      .push(self.id.parse().unwrap_or_default());
+    self.log.borrow_mut().push(self.id.clone());
   }
 }
 
@@ -55,13 +52,12 @@ fn main() {
     drop(drained);
 
     let slice = deque.make_contiguous();
-    slice
-      .iter_mut()
-      .for_each(|elem| elem.payload.push_str("-contig"));
+    slice.iter_mut().for_each(|elem| elem.payload.push_str("-contig"));
     assert!(deque.as_slices().1.is_empty());
   }
 
   let mut dropped = drops.borrow().clone();
   dropped.sort();
-  assert_eq!(dropped, (0..8).collect::<Vec<_>>());
+  let expected = (0..8).map(|id| id.to_string()).collect::<Vec<_>>();
+  assert_eq!(dropped, expected);
 }
