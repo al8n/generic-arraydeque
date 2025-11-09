@@ -44,7 +44,8 @@ fn main() {
       elem.payload.push_str(&format!("-range-{idx}"));
     }
 
-    deque.retain(|elem| elem.payload.len() % 2 == 0);
+    // Preserve a deterministic subset so `drain(1..)` actually removes items.
+    deque.retain(|elem| elem.id.parse::<i32>().unwrap() % 2 == 0);
 
     let drained: Vec<_> = deque.drain(1..).collect();
     assert!(!drained.is_empty());
