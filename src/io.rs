@@ -162,15 +162,18 @@ impl<N: ArrayLength> Write for GenericArrayDeque<u8, N> {
 }
 
 trait SplitAt {
+  #[allow(unstable_name_collisions)]
   fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)>;
 }
 
 trait SplitAtMut {
+  #[allow(unstable_name_collisions)]
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)>;
 }
 
 #[rustversion::since(1.79)]
 impl<T> SplitAt for [T] {
+  #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
     <[T]>::split_at_checked(self, mid)
@@ -179,6 +182,7 @@ impl<T> SplitAt for [T] {
 
 #[rustversion::before(1.79)]
 impl<T> SplitAt for [T] {
+  #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
     use core::slice::from_raw_parts;
@@ -199,6 +203,7 @@ impl<T> SplitAt for [T] {
 
 #[rustversion::since(1.80)]
 impl<T> SplitAtMut for [T] {
+  #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
     <[T]>::split_at_mut_checked(self, mid)
@@ -207,6 +212,7 @@ impl<T> SplitAtMut for [T] {
 
 #[rustversion::before(1.80)]
 impl<T> SplitAtMut for [T] {
+  #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
     use core::slice::from_raw_parts_mut;
