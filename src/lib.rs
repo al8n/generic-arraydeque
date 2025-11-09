@@ -781,12 +781,18 @@ where
     R: RangeBounds<usize>,
   {
     let (a_range, b_range) = self.slice_ranges(range, self.len);
-    // SAFETY: The ranges returned by `slice_ranges`
-    // are valid ranges into the physical buffer, so
-    // it's ok to pass them to `buffer_range` and
-    // dereference the result.
-    let a = unsafe { &mut *self.buffer_range_mut(a_range) };
-    let b = unsafe { &mut *self.buffer_range_mut(b_range) };
+    let base = self.ptr_mut();
+    let (a, b) = unsafe {
+      let a_ptr = ptr::slice_from_raw_parts_mut(
+        base.add(a_range.start) as *mut T,
+        a_range.end - a_range.start,
+      );
+      let b_ptr = ptr::slice_from_raw_parts_mut(
+        base.add(b_range.start) as *mut T,
+        b_range.end - b_range.start,
+      );
+      (&mut *a_ptr, &mut *b_ptr)
+    };
     IterMut::new(a.iter_mut(), b.iter_mut())
   }
 
@@ -1038,13 +1044,17 @@ where
   #[rustversion::attr(since(1.83), const)]
   pub fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
     let (a_range, b_range) = self.slice_full_ranges();
-    // SAFETY: `slice_full_ranges` always returns valid ranges into
-    // the physical buffer.
+    let base = self.ptr_mut();
     unsafe {
-      (
-        &mut *self.buffer_range_mut(a_range),
-        &mut *self.buffer_range_mut(b_range),
-      )
+      let a_ptr = ptr::slice_from_raw_parts_mut(
+        base.add(a_range.start) as *mut T,
+        a_range.end - a_range.start,
+      );
+      let b_ptr = ptr::slice_from_raw_parts_mut(
+        base.add(b_range.start) as *mut T,
+        b_range.end - b_range.start,
+      );
+      (&mut *a_ptr, &mut *b_ptr)
     }
   }
 
@@ -1242,7 +1252,7 @@ where
       self.head = self.to_physical_idx(1);
       self.len -= 1;
       unsafe {
-        core::hint::assert_unchecked(self.len < self.capacity());
+        assert_unchecked(self.len < self.capacity());
         Some(self.buffer_read(old_head))
       }
     }
@@ -1270,7 +1280,7 @@ where
     } else {
       self.len -= 1;
       unsafe {
-        core::hint::assert_unchecked(self.len < self.capacity());
+        assert_unchecked(self.len < self.capacity());
         Some(self.buffer_read(self.to_physical_idx(self.len)))
       }
     }
@@ -1456,7 +1466,6 @@ where
     }
 
     let &mut Self { head, len, .. } = self;
-    let ptr = self.ptr();
     let cap = self.capacity();
 
     let free = cap - len;
@@ -1569,7 +1578,8 @@ where
       }
     }
 
-    unsafe { slice::from_raw_parts_mut(ptr.add(self.head) as _, self.len) }
+    let base = self.ptr_mut();
+    unsafe { slice::from_raw_parts_mut(base.add(self.head) as *mut T, self.len) }
   }
 
   /// Shortens the deque, keeping the first `len` elements and dropping
@@ -1936,7 +1946,10 @@ where
     assert!(j < self.len());
     let ri = self.to_physical_idx(i);
     let rj = self.to_physical_idx(j);
-    unsafe { ptr::swap(self.ptr_mut().add(ri), self.ptr_mut().add(rj)) }
+    let base = self.ptr_mut();
+    unsafe {
+      ptr::swap(base.add(ri), base.add(rj));
+    }
   }
 
   /// Removes an element from anywhere in the deque and returns it,
@@ -2494,7 +2507,10 @@ where
     check_copy_bounds(dst, src, len, self.capacity());
 
     unsafe {
-      ptr::copy(self.ptr().add(src), self.ptr().add(dst) as _, len);
+      let base_ptr = self.ptr_mut();
+      let src_ptr = base_ptr.add(src) as *const MaybeUninit<T>;
+      let dst_ptr = base_ptr.add(dst);
+      ptr::copy(src_ptr, dst_ptr, len);
     }
   }
 
@@ -2524,7 +2540,10 @@ where
   unsafe fn copy_nonoverlapping(&mut self, src: usize, dst: usize, len: usize) {
     check_copy_bounds(dst, src, len, self.capacity());
     unsafe {
-      ptr::copy_nonoverlapping(self.ptr().add(src), self.ptr().add(dst) as _, len);
+      let base_ptr = self.ptr_mut();
+      let src_ptr = base_ptr.add(src) as *const MaybeUninit<T>;
+      let dst_ptr = base_ptr.add(dst);
+      ptr::copy_nonoverlapping(src_ptr, dst_ptr, len);
     }
   }
 
@@ -2889,4 +2908,14 @@ fn repeat_n<T: Clone>(element: T, mut count: usize) -> impl Iterator<Item = T> {
       Some(element.clone())
     }
   })
+}
+
+#[rustversion::before(1.85)]
+#[cfg_attr(not(tarpaulin), inline(always))]
+const unsafe fn assert_unchecked(_: bool) {}
+
+#[rustversion::since(1.85)]
+#[cfg_attr(not(tarpaulin), inline(always))]
+const unsafe fn assert_unchecked(cond: bool) {
+  core::hint::assert_unchecked(cond);
 }
