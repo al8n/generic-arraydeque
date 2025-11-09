@@ -920,7 +920,8 @@ where
   /// assert_eq!(buf2, []);
   /// ```
   #[inline]
-  pub const fn append(&mut self, other: &mut Self) -> bool {
+  #[rustversion::attr(since(1.83), const)]
+  pub fn append(&mut self, other: &mut Self) -> bool {
     if self.len + other.len > self.capacity() {
       return false;
     }
@@ -1087,7 +1088,8 @@ where
   /// assert_eq!(d.front(), Some(&9));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn front_mut(&mut self) -> Option<&mut T> {
+  #[rustversion::attr(since(1.84), const)]
+  pub fn front_mut(&mut self) -> Option<&mut T> {
     self.get_mut(0)
   }
 
@@ -1131,7 +1133,8 @@ where
   /// assert_eq!(d.back(), Some(&9));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn back_mut(&mut self) -> Option<&mut T> {
+  #[rustversion::attr(since(1.84), const)]
+  pub fn back_mut(&mut self) -> Option<&mut T> {
     self.get_mut(self.len.wrapping_sub(1))
   }
 
@@ -1959,7 +1962,8 @@ where
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![2, 1]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn swap_remove_front(&mut self, index: usize) -> Option<T> {
+  #[rustversion::attr(since(1.85), const)]
+  pub fn swap_remove_front(&mut self, index: usize) -> Option<T> {
     let length = self.len;
     if index < length && index != 0 {
       self.swap(index, 0);
@@ -1992,7 +1996,8 @@ where
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![3, 2]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn swap_remove_back(&mut self, index: usize) -> Option<T> {
+  #[rustversion::attr(since(1.85), const)]
+  pub fn swap_remove_back(&mut self, index: usize) -> Option<T> {
     let length = self.len;
     if length > 0 && index < length - 1 {
       self.swap(index, length - 1);
@@ -2309,7 +2314,8 @@ where
 
   /// Marginally more convenient
   #[inline]
-  const fn ptr_mut(&mut self) -> *mut MaybeUninit<T> {
+  #[rustversion::attr(since(1.83), const)]
+  fn ptr_mut(&mut self) -> *mut MaybeUninit<T> {
     self.array.as_mut_slice().as_mut_ptr()
   }
 
