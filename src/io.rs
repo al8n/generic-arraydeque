@@ -171,7 +171,7 @@ trait SplitAtMut {
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)>;
 }
 
-#[rustversion::since(1.79)]
+#[rustversion::since(1.80)]
 impl<T> SplitAt for [T] {
   #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -180,7 +180,7 @@ impl<T> SplitAt for [T] {
   }
 }
 
-#[rustversion::before(1.79)]
+#[rustversion::before(1.80)]
 impl<T> SplitAt for [T] {
   #[allow(unstable_name_collisions)]
   #[cfg_attr(not(tarpaulin), inline(always))]

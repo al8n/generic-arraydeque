@@ -283,20 +283,27 @@ jobs:
         include:
           - os: ubuntu-latest
             toolchain: nightly
+            cargo_hack: latest
           - os: ubuntu-latest
-            toolchain: stable
+            name: nightly-1.65
+            toolchain: nightly-2022-11-03
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
-            toolchain: 1.65.0
+            name: nightly-1.79
+            toolchain: nightly-2024-05-02
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
-            toolchain: 1.79.0
+            name: nightly-1.80
+            toolchain: nightly-2024-06-13
+            cargo_hack: 0.5.0
           - os: ubuntu-latest
-            toolchain: 1.80.0
+            name: nightly-1.83
+            toolchain: nightly-2024-09-19
+            cargo_hack: latest
           - os: ubuntu-latest
-            toolchain: 1.83.0
-          - os: ubuntu-latest
-            toolchain: 1.85.0
-          # - os: ubuntu-latest
-          #   toolchain: 1.92.0
+            name: nightly-1.85
+            toolchain: nightly-2024-11-07
+            cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -315,6 +322,10 @@ jobs:
           rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
       - name: Install rust-src
         run: rustup component add rust-src
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack@${{ matrix.cargo_hack }}
       - name: ASAN / LSAN / TSAN (Linux)
         run: ci/sanitizer.sh
 
