@@ -264,19 +264,21 @@ impl<T: Clone, N: ArrayLength> GenericArrayDeque<T, N> {
   /// # Examples
   ///
   /// ```
+  /// # #[cfg(feature = "std")] {
   /// use generic_arraydeque::{GenericArrayDeque, typenum::U20};
   ///
-  /// let mut characters = GenericArrayDeque::<_, U20>::try_from_exact_iter(['a', 'b', 'c', 'd', 'e']).unwrap();
+  /// let mut characters = GenericArrayDeque::<_, U20>::try_from_exact_iter(['a'.to_string(), 'b'.to_string(), 'c'.to_string(), 'd'.to_string(), 'e'.to_string()]).unwrap();
   /// characters.prepend_from_within(2..);
-  /// assert_eq!(characters, ['c', 'd', 'e', 'a', 'b', 'c', 'd', 'e']);
+  /// assert_eq!(characters, ['c'.to_string(), 'd'.to_string(), 'e'.to_string(), 'a'.to_string(), 'b'.to_string(), 'c'.to_string(), 'd'.to_string(), 'e'.to_string()]);
   ///
-  /// let mut numbers = GenericArrayDeque::<_, U20>::try_from_exact_iter([0, 1, 2, 3, 4]).unwrap();
+  /// let mut numbers = GenericArrayDeque::<_, U20>::try_from_exact_iter(["0".to_string(), "1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()]).unwrap();
   /// numbers.prepend_from_within(..2);
-  /// assert_eq!(numbers, [0, 1, 0, 1, 2, 3, 4]);
+  /// assert_eq!(numbers, ["0".to_string(), "1".to_string(), "0".to_string(), "1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()]);
   ///
   /// let mut strings = GenericArrayDeque::<_, U20>::try_from_exact_iter([String::from("hello"), String::from("world"), String::from("!")]).unwrap();
   /// strings.prepend_from_within(1..=2);
   /// assert_eq!(strings, ["world", "!", "hello", "world", "!"]);
+  /// # }
   /// ```
   pub fn prepend_from_within<R>(&mut self, src: R) -> bool
   where

@@ -43,6 +43,8 @@ mod iter_mut;
 mod serde;
 
 #[cfg(test)]
+mod heap_tests;
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "unstable")]
@@ -479,7 +481,7 @@ where
   /// # }
   /// ```
   #[inline(always)]
-  #[rustversion::attr(since(1.80), const)]
+  #[rustversion::attr(since(1.81), const)]
   pub fn from_array<const U: usize>(array: [T; U]) -> Self
   where
     typenum::Const<U>: IntoArrayLength<ArrayLength = N>,

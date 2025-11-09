@@ -184,6 +184,7 @@ mod tests {
     assert_eq!(iter.next_back(), None);
   }
 
+  #[allow(clippy::unnecessary_fold)]
   #[test]
   fn fold_and_rfold_process_all_items() {
     let mut deque = GenericArrayDeque::<_, U4>::new();

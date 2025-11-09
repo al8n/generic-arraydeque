@@ -96,6 +96,7 @@ mod tests {
     assert_eq!(count, 5);
   }
 
+  #[allow(clippy::unnecessary_fold)]
   #[test]
   fn fold_and_last_cover_all_items() {
     let mut deque = GenericArrayDeque::<_, U4>::new();
