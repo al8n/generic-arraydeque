@@ -69,3 +69,54 @@ impl<T, N: ArrayLength> ExactSizeIterator for IntoIter<T, N> {
 }
 
 impl<T, N: ArrayLength> FusedIterator for IntoIter<T, N> {}
+
+#[cfg(test)]
+mod tests {
+  use super::IntoIter;
+  use crate::{typenum::{U4, U8}, GenericArrayDeque};
+
+  #[test]
+  fn iterator_behaves_like_queue() {
+    let mut deque = GenericArrayDeque::<_, U8>::new();
+    for value in 0..5 {
+      assert!(deque.push_back(value).is_none());
+    }
+
+    let mut iter = IntoIter::new(deque.clone());
+    assert_eq!(iter.size_hint(), (5, Some(5)));
+    assert_eq!(iter.next(), Some(0));
+    assert_eq!(iter.next_back(), Some(4));
+    assert_eq!(iter.len(), 3);
+    assert_eq!(iter.last(), Some(3));
+
+    let count = deque.into_iter().count();
+    assert_eq!(count, 5);
+  }
+
+  #[test]
+  fn fold_and_last_cover_all_items() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+    let sum = IntoIter::new(deque.clone()).fold(0, |acc, value| acc + value);
+    assert_eq!(sum, 6);
+
+    let last = IntoIter::new(deque).last();
+    assert_eq!(last, Some(3));
+  }
+
+  #[test]
+  fn size_hint_shrinks_as_items_consumed() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+    let mut iter = IntoIter::new(deque);
+    assert_eq!(iter.size_hint(), (4, Some(4)));
+    iter.next();
+    assert_eq!(iter.size_hint(), (3, Some(3)));
+    iter.next_back();
+    assert_eq!(iter.size_hint(), (2, Some(2)));
+  }
+}

@@ -176,3 +176,99 @@ impl<T> ExactSizeIterator for IterMut<'_, T> {
 }
 
 impl<T> FusedIterator for IterMut<'_, T> {}
+
+#[cfg(test)]
+mod tests {
+  use super::IterMut;
+  use crate::{typenum::U5, GenericArrayDeque};
+
+  #[test]
+  fn into_slices_allows_mutation() {
+    let mut deque = GenericArrayDeque::<_, U5>::new();
+    for value in 0..5 {
+      assert!(deque.push_back(value).is_none());
+    }
+    assert_eq!(deque.pop_front(), Some(0));
+    assert!(deque.push_back(5).is_none());
+
+    let mut iter = deque.iter_mut();
+    assert_eq!(iter.next().map(|v| *v), Some(1));
+
+    let (front, back) = iter.into_slices();
+    front[0] = 10;
+    if let Some(last) = back.first_mut() {
+      *last = 50;
+    }
+    // drop((front, back));
+
+    assert_eq!(deque[0], 1);
+    assert_eq!(deque[1], 10);
+    assert_eq!(deque[4], 50);
+  }
+
+  #[test]
+  fn as_slices_reflect_remaining_segments() {
+    let mut deque = GenericArrayDeque::<_, U5>::new();
+    for value in 0..5 {
+      assert!(deque.push_back(value).is_none());
+    }
+    assert_eq!(deque.pop_front(), Some(0));
+    assert!(deque.push_back(5).is_none());
+
+    let mut iter = deque.iter_mut();
+    iter.next();
+    let (front, back) = iter.as_slices();
+    assert_eq!(front, &[2, 3, 4]);
+    assert_eq!(back, &[5]);
+  }
+
+  #[test]
+  fn fold_and_rfold_visit_all_items() {
+    let mut deque = GenericArrayDeque::<_, U5>::new();
+    for value in 0..5 {
+      assert!(deque.push_back(value).is_none());
+    }
+    {
+      let sum = deque.iter_mut().fold(0, |acc, item| acc + *item);
+      assert_eq!(sum, 10);
+    }
+    {
+      let sum = deque.iter_mut().rfold(0, |acc, item| acc + *item);
+      assert_eq!(sum, 10);
+    }
+  }
+
+  #[test]
+  fn size_hint_tracks_progress() {
+    let mut deque = GenericArrayDeque::<_, U5>::new();
+    for value in 0..5 {
+      assert!(deque.push_back(value).is_none());
+    }
+    let mut iter = deque.iter_mut();
+    assert_eq!(iter.size_hint(), (5, Some(5)));
+    iter.next();
+    assert_eq!(iter.size_hint(), (4, Some(4)));
+    iter.next_back();
+    assert_eq!(iter.size_hint(), (3, Some(3)));
+  }
+
+  #[test]
+  fn last_allows_mutating_tail() {
+    let mut deque = GenericArrayDeque::<_, U5>::new();
+    for value in 0..5 {
+      assert!(deque.push_back(value).is_none());
+    }
+    if let Some(last) = deque.iter_mut().last() {
+      *last = 99;
+    }
+    assert_eq!(deque[4], 99);
+  }
+
+  #[rustversion::since(1.70)]
+  #[test]
+  fn default_is_empty() {
+    let iter: IterMut<'static, u8> = Default::default();
+    assert_eq!(iter.len(), 0);
+    assert_eq!(iter.size_hint(), (0, Some(0)));
+  }
+}

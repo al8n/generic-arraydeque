@@ -145,3 +145,86 @@ impl<T> ExactSizeIterator for Iter<'_, T> {
 }
 
 impl<T> FusedIterator for Iter<'_, T> {}
+
+#[cfg(test)]
+mod tests {
+  use super::Iter;
+  use crate::{typenum::U4, GenericArrayDeque};
+
+  #[test]
+  fn as_slices_reflect_wrapping_layout() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+    assert_eq!(deque.pop_front(), Some(0));
+    assert!(deque.push_back(4).is_none());
+
+    let mut iter = deque.iter();
+    assert_eq!(iter.next(), Some(&1));
+    let (front, back) = iter.as_slices();
+    assert_eq!(front, &[2, 3]);
+    assert_eq!(back, &[4]);
+  }
+
+  #[test]
+  fn next_and_next_back_cover_all_elements() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+
+    let mut iter = deque.iter();
+    assert_eq!(iter.next(), Some(&0));
+    assert_eq!(iter.next_back(), Some(&3));
+    assert_eq!(iter.len(), 2);
+    assert_eq!(iter.next(), Some(&1));
+    assert_eq!(iter.next_back(), Some(&2));
+    assert_eq!(iter.next(), None);
+    assert_eq!(iter.next_back(), None);
+  }
+
+  #[test]
+  fn fold_and_rfold_process_all_items() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+    let iter = deque.iter();
+    let sum = iter.clone().fold(0, |acc, &value| acc + value);
+    assert_eq!(sum, 6);
+    let rsum = iter.rfold(0, |acc, &value| acc + value);
+    assert_eq!(rsum, 6);
+  }
+
+  #[test]
+  fn size_hint_tracks_remaining_items() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+    let mut iter = deque.iter();
+    assert_eq!(iter.size_hint(), (4, Some(4)));
+    iter.next();
+    assert_eq!(iter.size_hint(), (3, Some(3)));
+    iter.next_back();
+    assert_eq!(iter.size_hint(), (2, Some(2)));
+  }
+
+  #[test]
+  fn last_returns_final_element() {
+    let mut deque = GenericArrayDeque::<_, U4>::new();
+    for value in 0..4 {
+      assert!(deque.push_back(value).is_none());
+    }
+    assert_eq!(deque.iter().last(), Some(&3));
+  }
+
+  #[rustversion::since(1.70)]
+  #[test]
+  fn default_is_empty() {
+    let iter: Iter<'static, u8> = Default::default();
+    assert_eq!(iter.len(), 0);
+    assert_eq!(iter.size_hint(), (0, Some(0)));
+  }
+}

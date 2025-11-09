@@ -236,3 +236,115 @@ impl<T> SplitAtMut for [T] {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use crate::{typenum::{U2, U4, U6, U8}, GenericArrayDeque};
+  use std::{
+    io::{self, BufRead, IoSlice, Read, Write},
+    string::String,
+    vec::Vec,
+  };
+
+  #[test]
+  fn read_consumes_front_slice() {
+    let mut deque = GenericArrayDeque::<u8, U8>::new();
+    for byte in b"hello" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+
+    let mut buf = [0u8; 3];
+    let read = Read::read(&mut deque, &mut buf).unwrap();
+    assert_eq!(read, 3);
+    assert_eq!(&buf[..read], b"hel");
+    assert_eq!(deque.into_iter().collect::<Vec<_>>(), b"lo".to_vec());
+  }
+
+  #[test]
+  fn read_exact_handles_wrapped_storage() {
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    for byte in b"abcd" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+    assert_eq!(deque.pop_front(), Some(b'a'));
+    assert!(deque.push_back(b'e').is_none());
+
+    let mut buf = [0u8; 3];
+    deque.read_exact(&mut buf).unwrap();
+    assert_eq!(&buf, b"bcd");
+    assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![b'e']);
+  }
+
+  #[test]
+  fn read_exact_reports_eof() {
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    assert!(deque.push_back(b'x').is_none());
+
+    let mut buf = [0u8; 2];
+    let err = Read::read_exact(&mut deque, &mut buf).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+  }
+
+  #[test]
+  fn read_to_end_and_string_clear_buffer() {
+    let mut deque = GenericArrayDeque::<u8, U6>::new();
+    for byte in b"abc" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+    let mut buf = Vec::new();
+    deque.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"abc");
+    assert!(deque.is_empty());
+
+    for byte in b"de" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+    let mut string = String::new();
+    deque.read_to_string(&mut string).unwrap();
+    assert_eq!(string, "de");
+    assert_eq!(deque.len(), 2);
+
+    deque.clear();
+    deque.push_back(0xFF);
+    let mut invalid = String::new();
+    let err = deque.read_to_string(&mut invalid).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+  }
+
+  #[test]
+  fn bufread_fill_and_consume() {
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    for byte in b"abcd" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+
+    let buf = BufRead::fill_buf(&mut deque).unwrap();
+    assert_eq!(buf, b"abcd");
+    BufRead::consume(&mut deque, 3);
+    assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![b'd']);
+  }
+
+  #[test]
+  fn write_variants_respect_capacity() {
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let written = Write::write(&mut deque, b"abcdef").unwrap();
+    assert_eq!(written, 6);
+    assert_eq!(deque.len(), 4);
+
+    let mut deque = GenericArrayDeque::<u8, U8>::new();
+    let slices = [IoSlice::new(b"ab"), IoSlice::new(b"cd")];
+    assert_eq!(Write::write_vectored(&mut deque, &slices).unwrap(), 4);
+    assert_eq!(deque.len(), 4);
+    let overflow = [IoSlice::new(b"1234"), IoSlice::new(b"5678")];
+    let err = Write::write_vectored(&mut deque, &overflow).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::WriteZero);
+
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    Write::write_all(&mut deque, b"wxyz").unwrap();
+    let err = Write::write_all(&mut deque, b"overflow").unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::WriteZero);
+
+    let mut deque = GenericArrayDeque::<u8, U2>::new();
+    Write::flush(&mut deque).unwrap();
+  }
+}
