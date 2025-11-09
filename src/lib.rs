@@ -2847,7 +2847,7 @@ const fn check_copy_bounds(dst: usize, src: usize, len: usize, cap: usize) {
 }
 
 #[rustversion::before(1.83)]
-const fn check_copy_bounds(dst: usize, src: usize, len: usize, cap: usize) {
+fn check_copy_bounds(dst: usize, src: usize, len: usize, cap: usize) {
   debug_assert!(
     dst + len <= cap,
     "cpy dst={} src={} len={} cap={}",
