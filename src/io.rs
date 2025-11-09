@@ -187,7 +187,8 @@ impl<T> SplitAt for [T] {
   fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
     use core::slice::from_raw_parts;
 
-    if mid <= self.len() {
+    let len = self.len();
+    if mid <= len {
       // SAFETY: `0 <= mid <= self.len()`
       Some(unsafe {
         (
@@ -216,7 +217,8 @@ impl<T> SplitAtMut for [T] {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
     use core::slice::from_raw_parts_mut;
-    if mid <= self.len() {
+    let len = self.len();
+    if mid <= len {
       let len = self.len();
       // SAFETY: `0 <= mid <= self.len()`, so the two slices do not overlap.
       Some(unsafe {
