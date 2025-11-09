@@ -1462,7 +1462,8 @@ where
     }
 
     if self.is_contiguous() {
-      unsafe { return slice::from_raw_parts_mut(self.ptr().add(self.head) as _, self.len) }
+      let base = self.ptr_mut();
+      unsafe { return slice::from_raw_parts_mut(base.add(self.head) as *mut T, self.len) }
     }
 
     let &mut Self { head, len, .. } = self;
