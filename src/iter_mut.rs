@@ -86,6 +86,7 @@ impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
   }
 }
 
+#[rustversion::since(1.70)]
 impl<T> Default for IterMut<'_, T> {
   /// Creates an empty iterator.
   ///

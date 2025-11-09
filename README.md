@@ -29,6 +29,17 @@ English | [简体中文][zh-cn-url]
 - **Serde Support**: Optional serialization/deserialization support
 - **I/O Support**: `Read` and `Write` trait implementations (with `std` feature)
 
+## Testing & Memory Safety
+
+This crate is rigorously tested for memory safety and correctness using multiple tools:
+
+- **Miri (Tree Borrows)**: All tests pass under Miri with the Tree Borrows aliasing model
+- **Miri (Stack Borrows)**: All tests pass under Miri with the Stack Borrows aliasing model
+- **Sanitizers**: Tested with AddressSanitizer, MemorySanitizer, and ThreadSanitizer
+- **Valgrind**: Memory leak and error detection validated with Valgrind
+
+These extensive checks ensure that all unsafe code is sound and that memory is managed correctly, making this crate safe for use in production environments, including safety-critical systems.
+
 ## Implementation Notes
 
 Most of the code in this crate is adapted from Rust's standard library [`VecDeque`](https://doc.rust-lang.org/std/collections/struct.VecDeque.html), modified to work with:

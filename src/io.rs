@@ -66,7 +66,9 @@ impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
   fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
     // The total len is known upfront so we can reserve it in a single call.
     let len = self.len();
-    buf.try_reserve(len)?;
+    buf
+      .try_reserve(len)
+      .map_err(|_| io::ErrorKind::OutOfMemory)?;
 
     let (front, back) = self.as_slices();
     buf.extend_from_slice(front);
@@ -86,7 +88,9 @@ impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
     }
 
     let len = self.len();
-    buf.try_reserve(len)?;
+    buf
+      .try_reserve(len)
+      .map_err(|_| io::ErrorKind::OutOfMemory)?;
 
     // SAFETY: We have already verified that the data is valid UTF-8
     unsafe {

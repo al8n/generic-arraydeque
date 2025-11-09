@@ -55,6 +55,7 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
   }
 }
 
+#[rustversion::since(1.70)]
 impl<T> Default for Iter<'_, T> {
   /// Creates an empty iterator.
   ///

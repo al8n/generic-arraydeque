@@ -365,10 +365,6 @@ jobs:
         run: |
           rustup update ${{ matrix.toolchain }} --no-self-update
           rustup default ${{ matrix.toolchain }}
-      # - name: Install cargo-hack
-      #   uses: taiki-e/install-action@v2
-      #   with:
-      #     tool: cargo-hack@latest
       - name: Miri
         run: |
           bash ci/miri_tb.sh ${{ matrix.target }} ${{ matrix.cfg }}
@@ -434,10 +430,6 @@ jobs:
         run: |
           rustup update ${{ matrix.toolchain }} --no-self-update
           rustup default ${{ matrix.toolchain }}
-      # - name: Install cargo-hack
-      #   uses: taiki-e/install-action@v2
-      #   with:
-      #     tool: cargo-hack@latest
       - name: Miri
         run: |
           bash ci/miri_sb.sh ${{ matrix.target }} ${{ matrix.cfg }}
@@ -469,14 +461,19 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y valgrind
       # Compile tests
-      # - name: cargo build foo
-      #   run: cargo build --bin foo
-      #   working-directory: integration
+      - name: cargo build integration-bin (release)
+        run: cargo build --bin --release integration-bin
 
       # Run with valgrind
-      # - name: Run valgrind foo
-      #   run: valgrind --error-exitcode=1 --leak-check=full --show-leak-kinds=all ./target/debug/foo
-      #   working-directory: integration
+      - name: Run valgrind integration-bin (release)
+        run: valgrind --error-exitcode=1 --leak-check=full --show-leak-kinds=all ./target/release/integration-bin
+      # Compile tests
+      - name: cargo build integration-bin (debug)
+        run: cargo build --bin integration-bin
+
+      # Run with valgrind
+      - name: Run valgrind integration-bin (debug)
+        run: valgrind --error-exitcode=1 --leak-check=full --show-leak-kinds=all ./target/debug/integration-bin
 
   coverage:
     name: coverage

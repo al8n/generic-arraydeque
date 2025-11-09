@@ -347,6 +347,7 @@ impl<T, N: ArrayLength> From<GenericArray<T, N>> for GenericArrayDeque<T, N> {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 const _: () = {
+  #[allow(unused_imports)]
   use std::vec::Vec;
 
   impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
