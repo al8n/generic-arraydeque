@@ -148,7 +148,6 @@ impl<T> FusedIterator for Iter<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-  use super::Iter;
   use crate::{typenum::U4, GenericArrayDeque};
 
   #[test]
