@@ -239,7 +239,10 @@ impl<T> SplitAtMut for [T] {
 
 #[cfg(test)]
 mod tests {
-  use crate::{typenum::{U2, U4, U6, U8}, GenericArrayDeque};
+  use crate::{
+    typenum::{U2, U4, U6, U8},
+    GenericArrayDeque,
+  };
   use std::{
     io::{self, BufRead, IoSlice, Read, Write},
     string::String,

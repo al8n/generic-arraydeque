@@ -73,7 +73,10 @@ impl<T, N: ArrayLength> FusedIterator for IntoIter<T, N> {}
 #[cfg(test)]
 mod tests {
   use super::IntoIter;
-  use crate::{typenum::{U4, U8}, GenericArrayDeque};
+  use crate::{
+    typenum::{U4, U8},
+    GenericArrayDeque,
+  };
 
   #[test]
   fn iterator_behaves_like_queue() {
