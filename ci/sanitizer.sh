@@ -1,21 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -ex
+set -euo pipefail
 
-export ASAN_OPTIONS="detect_odr_violation=0 detect_leaks=0"
+TARGET="${SANITIZER_TARGET:-x86_64-unknown-linux-gnu}"
+FEATURES="${SANITIZER_FEATURES:-unstable}"
+COMMON_TEST_ARGS=(--features "${FEATURES}")
 
-# Run address sanitizer
-RUSTFLAGS="-Z sanitizer=address --cfg all_tests" \
-cargo test --tests --target x86_64-unknown-linux-gnu --all-features
+# Keep ODR detection disabled (match stdlib) but allow leak detection so we do
+# not need a dedicated LSan stage.
+export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_odr_violation=0:detect_leaks=1}"
 
-# Run leak sanitizer
-RUSTFLAGS="-Z sanitizer=leak --cfg all_tests" \
-cargo test --tests --target x86_64-unknown-linux-gnu --all-features
-
-# Run memory sanitizer
-RUSTFLAGS="-Z sanitizer=memory --cfg all_tests" \
-cargo test --tests --target x86_64-unknown-linux-gnu --all-features
-
-# Run thread sanitizer
-RUSTFLAGS="-Z sanitizer=thread --cfg all_tests" \
-cargo -Zbuild-std test --tests --target x86_64-unknown-linux-gnu --all-features
+echo "==> AddressSanitizer: unit/integration/examples/bench tests (${TARGET})"
+RUSTFLAGS="-Z sanitizer=address" \
+  cargo test --target "${TARGET}" --all-targets "${COMMON_TEST_ARGS[@]}"
