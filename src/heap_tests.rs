@@ -26,6 +26,7 @@ fn heap_test_swap_front_back_remove() {
         GenericArrayDeque::try_from_exact_iter((0..len).rev().map(s)).unwrap()
       };
       for head_pos in 0..usable_cap {
+        tester.clear();
         tester.head = head_pos;
         tester.len = 0;
         if back {
@@ -63,6 +64,7 @@ fn heap_test_insert() {
     let expected = GenericArrayDeque::<String, U15>::try_from_iter((0..).take(len).map(s)).unwrap();
     for head_pos in 0..cap {
       for to_insert in 0..len {
+        tester.clear();
         tester.head = head_pos;
         tester.len = 0;
         for i in 0..len {
@@ -163,6 +165,7 @@ fn heap_test_drain() {
     for head in 0..cap {
       for drain_start in 0..=len {
         for drain_end in drain_start..=len {
+          tester.clear();
           tester.head = head;
           tester.len = 0;
           for i in 0..len {
@@ -203,6 +206,7 @@ fn heap_test_split_off() {
         GenericArrayDeque::<String, U15>::try_from_iter((at..).take(len - at).map(s)).unwrap();
 
       for head_pos in 0..cap {
+        tester.clear();
         tester.head = head_pos;
         tester.len = 0;
         for i in 0..len {
