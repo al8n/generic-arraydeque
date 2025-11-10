@@ -356,9 +356,10 @@ impl<T, N: ArrayLength> From<GenericArray<T, N>> for GenericArrayDeque<T, N> {
 }
 
 #[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 const _: () = {
   #[allow(unused_imports)]
-  use std::vec::Vec;
+  use std::{collections::VecDeque, vec::Vec};
 
   impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
     /// Tries to create a deque from a vector.
@@ -386,8 +387,6 @@ const _: () = {
     /// assert_eq!(deque[1].as_str(), "2");
     /// assert_eq!(deque[2].as_str(), "3");
     /// ```
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
     pub fn try_from_vec(vec: Vec<T>) -> Result<Self, Vec<T>> {
       if vec.len() > N::USIZE {
         return Err(vec);
@@ -419,18 +418,98 @@ const _: () = {
   impl<T, N: ArrayLength> TryFrom<Vec<T>> for GenericArrayDeque<T, N> {
     type Error = Vec<T>;
 
+    /// ```
+    /// use generic_arraydeque::{GenericArrayDeque, typenum::{U4, U2}};
+    ///
+    /// use std::vec::Vec;
+    ///
+    /// let deque = GenericArrayDeque::<i32, U4>::try_from(vec![1, 2, 3]).unwrap();
+    /// assert_eq!(deque.len(), 3);
+    ///
+    /// let result = GenericArrayDeque::<i32, U2>::try_from(vec![1, 2, 3]);
+    /// assert!(result.is_err());
+    /// ```
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn try_from(vec: Vec<T>) -> Result<Self, Self::Error> {
       Self::try_from_vec(vec)
     }
   }
 
+  impl<T, N: ArrayLength> TryFrom<VecDeque<T>> for GenericArrayDeque<T, N> {
+    type Error = VecDeque<T>;
+
+    /// ```
+    /// use generic_arraydeque::{GenericArrayDeque, typenum::{U4, U2}};
+    ///
+    /// use std::collections::VecDeque;
+    ///
+    /// let deque = GenericArrayDeque::<i32, U4>::try_from(VecDeque::from(vec![1, 2, 3])).unwrap();
+    /// assert_eq!(deque.len(), 3);
+    ///
+    /// let result = GenericArrayDeque::<i32, U2>::try_from(VecDeque::from(vec![1, 2, 3]));
+    /// assert!(result.is_err());
+    /// ```
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn try_from(vec_deq: VecDeque<T>) -> Result<Self, Self::Error> {
+      if vec_deq.len() > N::USIZE {
+        return Err(vec_deq);
+      }
+
+      let mut deq = GenericArray::uninit();
+      let len = vec_deq.len();
+
+      for (i, item) in vec_deq.into_iter().enumerate() {
+        deq[i].write(item);
+      }
+
+      Ok(Self {
+        array: deq,
+        head: 0,
+        len,
+      })
+    }
+  }
+
   impl<T, N: ArrayLength> From<GenericArrayDeque<T, N>> for Vec<T> {
+    /// ```
+    /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+    ///
+    /// let mut deque = GenericArrayDeque::<i32, U4>::new();
+    /// deque.push_back(10);
+    /// deque.push_back(20);
+    /// deque.push_back(30);
+    ///
+    /// let vec: Vec<i32> = Vec::from(deque);
+    /// assert_eq!(vec, vec![10, 20, 30]);
+    /// ```
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(deq: GenericArrayDeque<T, N>) -> Self {
       let mut vec = Vec::with_capacity(deq.len());
       for item in deq.into_iter() {
         vec.push(item);
+      }
+      vec
+    }
+  }
+
+  impl<T, N: ArrayLength> From<GenericArrayDeque<T, N>> for VecDeque<T> {
+    /// ```
+    /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+    /// use std::collections::VecDeque;
+    ///
+    /// let mut deque = GenericArrayDeque::<i32, U4>::new();
+    /// deque.push_back(10);
+    /// deque.push_back(20);
+    /// deque.push_back(30);
+    ///
+    /// let vec_deque: VecDeque<i32> = VecDeque::from(deque);
+    /// assert_eq!(vec_deque, VecDeque::from(vec![10, 20, 30]));
+    /// ```
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn from(deq: GenericArrayDeque<T, N>) -> Self {
+      let mut vec = VecDeque::with_capacity(deq.len());
+      for item in deq.into_iter() {
+        vec.push_back(item);
       }
       vec
     }
@@ -459,10 +538,10 @@ where
     }
   }
 
-  /// Convert a native array into `GenericArray` of the same length and type.
+  /// Convert a native array into `GenericArrayDeque` of the same length and type.
   ///
   /// This is equivalent to using the standard [`From`]/[`Into`] trait methods, but avoids
-  /// constructing an intermediate `GenericArray`.
+  /// constructing an intermediate `GenericArrayDeque`.
   ///
   /// ## Examples
   ///

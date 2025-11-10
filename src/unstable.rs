@@ -190,11 +190,11 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   ///
   /// ## Examples
   ///
-  /// ```ignore
+  /// ```
   /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
   ///
   /// let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter([1, 2, 3]).unwrap();
-  /// let x = deque.insert_mut(1, 5);
+  /// let x = deque.insert_mut(1, 5).unwrap();
   /// *x += 7;
   /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![1, 12, 2, 3]);
   /// ```
