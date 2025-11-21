@@ -48,7 +48,7 @@ jobs:
             cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install Rust
       run: |
         rustup update ${{ matrix.toolchain }} --no-self-update
@@ -78,7 +78,7 @@ jobs:
             cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install Rust
       run: |
         rustup update ${{ matrix.toolchain }} --no-self-update
@@ -115,7 +115,7 @@ jobs:
           - wasm32-wasip2
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
         uses: actions/cache@v4
         with:
@@ -180,7 +180,7 @@ jobs:
             cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Cache cargo build and registry
       uses: actions/cache@v4
       with:
@@ -249,7 +249,7 @@ jobs:
             cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Cache cargo build and registry
       uses: actions/cache@v4
       with:
@@ -285,7 +285,7 @@ jobs:
             toolchain: nightly
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
         uses: actions/cache@v4
         with:
@@ -350,7 +350,7 @@ jobs:
             target: powerpc64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
         uses: actions/cache@v4
         with:
@@ -415,7 +415,7 @@ jobs:
             target: powerpc64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
         uses: actions/cache@v4
         with:
@@ -439,7 +439,7 @@ jobs:
     name: valgrind
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
         uses: actions/cache@v4
         with:
@@ -490,7 +490,7 @@ jobs:
       - test
       - sanitizer
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
