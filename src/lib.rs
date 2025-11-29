@@ -53,6 +53,9 @@ mod unstable;
 
 mod macros;
 
+/// Re-export of the `generic_array` crate for better interoperability.
+pub use generic_array as array;
+
 /// [`GenericArrayDeque`] with a const-generic `usize` length, using the [`ConstArrayLength`] type alias for `N`.
 ///
 /// To construct from a literal array, use [`from_array`](GenericArrayDeque::from_array).
