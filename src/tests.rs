@@ -1083,8 +1083,7 @@ fn issue_53529() {
 
 #[test]
 fn issue_80303() {
-  use core::iter;
-  use core::num::Wrapping;
+  use core::{iter, num::Wrapping};
 
   // This is a valid, albeit rather bad hash function implementation.
   struct SimpleHasher(Wrapping<u64>);
