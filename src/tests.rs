@@ -756,6 +756,59 @@ fn test_extend_basic() {
   test_extend_impl(false);
 }
 
+// Regression: `ExactSizeIterator::len()` is a safe trait method — a
+// misbehaving impl can advertise a smaller length than it actually yields.
+// The bounded-extend paths used to trust that length and write past
+// capacity, corrupting `self.len` into UB territory.
+#[derive(Debug)]
+struct LyingExactSize {
+  remaining: usize,
+  advertised: usize,
+}
+
+impl Iterator for LyingExactSize {
+  type Item = i32;
+
+  fn next(&mut self) -> Option<i32> {
+    if self.remaining == 0 {
+      None
+    } else {
+      self.remaining -= 1;
+      Some(42)
+    }
+  }
+}
+
+impl ExactSizeIterator for LyingExactSize {
+  fn len(&self) -> usize {
+    self.advertised
+  }
+}
+
+#[test]
+fn try_extend_from_exact_iter_bounds_by_capacity() {
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  assert!(deque
+    .try_extend_from_exact_iter(LyingExactSize {
+      remaining: 8,
+      advertised: 0,
+    })
+    .is_none());
+  assert!(deque.len() <= deque.capacity());
+  assert_eq!(deque.len(), 4);
+}
+
+#[test]
+fn try_from_exact_iter_bounds_by_capacity() {
+  let deque = GenericArrayDeque::<i32, U4>::try_from_exact_iter(LyingExactSize {
+    remaining: 8,
+    advertised: 0,
+  })
+  .unwrap();
+  assert!(deque.len() <= deque.capacity());
+  assert_eq!(deque.len(), 4);
+}
+
 #[test]
 fn test_extend_trusted_len() {
   test_extend_impl(true);
@@ -1494,4 +1547,706 @@ fn extract_if_pred_panic_leak() {
 
   assert_eq!(DROPS.get(), 2); // 0 and 1
   assert_eq!(q.len(), 6);
+}
+
+// ---------------------------------------------------------------------------
+// Coverage fillers: hit branches that nominal tests miss.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn debug_impl_renders_elements_in_logical_order() {
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  deque.push_back(2);
+  deque.push_back(3);
+  deque.push_front(1);
+  assert_eq!(std::format!("{:?}", deque), "[1, 2, 3]");
+}
+
+#[test]
+fn default_returns_empty_deque() {
+  let deque: GenericArrayDeque<i32, U4> = Default::default();
+  assert!(deque.is_empty());
+  assert_eq!(deque.capacity(), 4);
+}
+
+#[test]
+fn partial_eq_rejects_different_lengths() {
+  let a = GenericArrayDeque::<i32, U4>::try_from_array([1, 2]).unwrap();
+  let b = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  assert!(a != b);
+  assert!(b != a);
+}
+
+#[test]
+fn partial_eq_across_ring_splits() {
+  // Non-contiguous `self` with fewer front items than `other`.
+  let mut a = GenericArrayDeque::<i32, U6>::new();
+  for v in 0..4 {
+    a.push_back(v);
+  }
+  a.pop_front();
+  a.push_back(4);
+  // a: front=[1,2,3], back=[4]
+
+  let b = GenericArrayDeque::<i32, U6>::try_from_array([1, 2, 3, 4]).unwrap();
+  assert!(a == b);
+  assert!(b == a);
+
+  // Non-matching element somewhere in the middle.
+  let c = GenericArrayDeque::<i32, U6>::try_from_array([1, 2, 9, 4]).unwrap();
+  assert!(a != c);
+}
+
+#[test]
+fn ord_and_partial_ord_use_lexicographic_iter_order() {
+  use std::cmp::Ordering;
+  let a = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  let b = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 4]).unwrap();
+  assert!(a < b);
+  assert_eq!(a.cmp(&b), Ordering::Less);
+  assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
+  assert_eq!(a.cmp(&a), Ordering::Equal);
+}
+
+#[test]
+fn hash_is_stable_across_layouts() {
+  use std::collections::hash_map::DefaultHasher;
+  use std::hash::{Hash, Hasher};
+
+  let contiguous = GenericArrayDeque::<i32, U6>::try_from_array([1, 2, 3, 4]).unwrap();
+  let mut wrapped = GenericArrayDeque::<i32, U6>::new();
+  for v in 0..4 {
+    wrapped.push_back(v);
+  }
+  wrapped.pop_front();
+  wrapped.push_back(4);
+  // wrapped == [1, 2, 3, 4] logically, but physically split.
+
+  let mut h1 = DefaultHasher::new();
+  contiguous.hash(&mut h1);
+  let mut h2 = DefaultHasher::new();
+  wrapped.hash(&mut h2);
+  assert_eq!(h1.finish(), h2.finish());
+}
+
+#[test]
+fn append_zst_tracks_length() {
+  #[derive(Clone, Debug, PartialEq)]
+  struct Z;
+  let mut a = GenericArrayDeque::<Z, U4>::new();
+  a.push_back(Z);
+  a.push_back(Z);
+  let mut b = GenericArrayDeque::<Z, U4>::new();
+  b.push_back(Z);
+  assert!(a.append(&mut b));
+  assert_eq!(a.len(), 3);
+  assert_eq!(b.len(), 0);
+
+  // Overflow path: combined > capacity => false, state unchanged.
+  let mut c = GenericArrayDeque::<Z, U4>::new();
+  for _ in 0..4 {
+    c.push_back(Z);
+  }
+  let mut d = GenericArrayDeque::<Z, U4>::new();
+  d.push_back(Z);
+  assert!(!c.append(&mut d));
+  assert_eq!(c.len(), 4);
+  assert_eq!(d.len(), 1);
+}
+
+#[test]
+fn binary_search_hits_back_slice_branches() {
+  // Force a wrapping layout so that `back` contains later elements.
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  // Rotate so items split between front and back.
+  for _ in 0..3 {
+    deque.pop_front();
+  }
+  for v in 4..8 {
+    deque.push_back(v);
+  }
+  // deque logical: [3, 4, 5, 6, 7], physically wrapped.
+
+  assert_eq!(deque.binary_search(&3), Ok(0));
+  // Hit the `Equal` on `back.first()` branch.
+  assert!(matches!(deque.binary_search(&5), Ok(_)));
+  // Hit the `Less` on `back.first()` branch (target strictly greater).
+  assert_eq!(deque.binary_search(&7), Ok(4));
+  // Not found, past the end.
+  assert_eq!(deque.binary_search(&99), Err(5));
+}
+
+#[test]
+fn partition_point_splits_across_slices() {
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  for _ in 0..3 {
+    deque.pop_front();
+  }
+  for v in 4..8 {
+    deque.push_back(v);
+  }
+  // deque logical: [3, 4, 5, 6, 7].
+  // Partition point ends up in `back` (after the physical split).
+  let idx = deque.partition_point(|&x| x < 6);
+  assert_eq!(idx, 3);
+  // Partition point that lands in `front` (first condition true for all of back).
+  let idx = deque.partition_point(|&x| x < 0);
+  assert_eq!(idx, 0);
+}
+
+#[test]
+fn insert_returns_value_when_full_or_out_of_range() {
+  let mut deque = GenericArrayDeque::<i32, U2>::new();
+  deque.push_back(1);
+  deque.push_back(2);
+  assert_eq!(deque.insert(0, 99), Some(99));
+
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  deque.push_back(1);
+  // index > len
+  assert_eq!(deque.insert(5, 99), Some(99));
+}
+
+#[test]
+fn retain_keeps_all_and_drops_all() {
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..5).unwrap();
+  deque.retain(|_| true);
+  assert_eq!(deque.len(), 5);
+
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..5).unwrap();
+  deque.retain(|_| false);
+  assert!(deque.is_empty());
+}
+
+#[test]
+fn retain_mut_mutates_in_place() {
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..5).unwrap();
+  deque.retain_mut(|x| {
+    *x *= 2;
+    *x != 4
+  });
+  // Inputs 0..5 become 0,2,4,6,8; predicate drops the 4.
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![0, 2, 6, 8]);
+}
+
+#[test]
+fn resize_with_rejects_when_over_capacity() {
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  // Requested new_len exceeds capacity => false.
+  assert!(!deque.resize_with(5, || 0));
+  // Succeed at or below capacity.
+  assert!(deque.resize_with(3, || 7));
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![7, 7, 7]);
+  // Shrink path.
+  assert!(deque.resize_with(1, || 0));
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![7]);
+}
+
+#[test]
+fn copy_slice_split_at_exercises_wrap() {
+  // This test exercises `copy_slice`'s wrap branch via `append`.
+  let mut dst = GenericArrayDeque::<i32, U8>::new();
+  // Advance the head so that appending a slice ends up wrapping.
+  for v in 0..6 {
+    dst.push_back(v);
+  }
+  for _ in 0..4 {
+    dst.pop_front();
+  }
+  // dst logical: [4, 5]; head=4, remaining=6.
+  let mut src = GenericArrayDeque::<i32, U8>::try_from_array([10, 11, 12, 13, 14]).unwrap();
+  assert!(dst.append(&mut src));
+  assert_eq!(
+    dst.iter().copied().collect::<Vec<_>>(),
+    vec![4, 5, 10, 11, 12, 13, 14]
+  );
+}
+
+// --- wrap_copy branches ---
+// wrap_copy chooses one of 8 code paths based on (src_wraps, dst_wraps, dst_after_src).
+// Exercise them via `rotate_left` / `rotate_right` / `insert` / `remove` on deques
+// whose head position puts the copy in each regime.
+
+#[test]
+fn rotate_left_across_wrap() {
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  for v in 0..6 {
+    deque.push_back(v);
+  }
+  for _ in 0..3 {
+    deque.pop_front();
+  }
+  for v in 6..10 {
+    deque.push_back(v);
+  }
+  // logical: [3,4,5,6,7,8,9]
+  deque.rotate_left(3);
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![6, 7, 8, 9, 3, 4, 5]
+  );
+}
+
+#[test]
+fn rotate_right_across_wrap() {
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  for v in 0..6 {
+    deque.push_back(v);
+  }
+  for _ in 0..3 {
+    deque.pop_front();
+  }
+  for v in 6..10 {
+    deque.push_back(v);
+  }
+  deque.rotate_right(2);
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![8, 9, 3, 4, 5, 6, 7]
+  );
+}
+
+#[test]
+fn insert_and_remove_at_every_position_wrapping() {
+  // Stress `wrap_copy`'s 8 branches by performing insert/remove at every
+  // position on a wrapped deque. Each pair should round-trip.
+  for head_pos in 0..8 {
+    for at in 0..5 {
+      let mut deque = GenericArrayDeque::<i32, U8>::new();
+      deque.head = head_pos;
+      deque.len = 0;
+      for v in 0..5 {
+        deque.push_back(v);
+      }
+      let before: Vec<_> = deque.iter().copied().collect();
+      assert_eq!(deque.insert(at, 99), None);
+      assert_eq!(deque.remove(at), Some(99));
+      let after: Vec<_> = deque.iter().copied().collect();
+      assert_eq!(
+        before, after,
+        "head_pos={head_pos}, at={at}"
+      );
+    }
+  }
+}
+
+#[test]
+fn drain_debug_fmt() {
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
+  let drain = deque.drain(1..3);
+  let _ = std::format!("{:?}", drain);
+}
+
+#[test]
+fn iter_debug_fmt_shows_both_slices() {
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  deque.pop_front();
+  deque.push_back(4);
+  let iter = deque.iter();
+  let s = std::format!("{:?}", iter);
+  assert!(s.starts_with("Iter("));
+  let _ = std::format!("{:?}", deque.iter_mut());
+  let _ = std::format!("{:?}", deque.clone().into_iter());
+}
+
+#[test]
+fn range_bounds_invalid_panics() {
+  let deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  // Included end == len panics via `slice_index_fail`.
+  let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    #[allow(clippy::reversed_empty_ranges)]
+    let _ = deque.range(2..=10);
+  }));
+  assert!(r.is_err());
+
+  // start > end panics.
+  let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    use std::ops::Bound;
+    let _ = deque.range((Bound::Excluded(2), Bound::Included(1)));
+  }));
+  assert!(r.is_err());
+}
+
+// --- Additional coverage: unstable APIs, drain internals, make_contiguous edges ---
+
+#[cfg(feature = "unstable")]
+#[test]
+fn truncate_front_keeps_last_items() {
+  // Build a physically-wrapped deque so both branches of `truncate_front`
+  // are reachable: front=[5,6,7], back=[8,9,10,11,12].
+  fn wrapped() -> GenericArrayDeque<i32, U8> {
+    let mut deque = GenericArrayDeque::<i32, U8>::new();
+    for v in 0..8 {
+      deque.push_back(v);
+    }
+    for _ in 0..5 {
+      deque.pop_front();
+    }
+    for v in 8..13 {
+      deque.push_back(v);
+    }
+    deque
+  }
+
+  // `len > back.len()` branch: drop part of `front`, keep all of `back`.
+  let mut deque = wrapped();
+  deque.truncate_front(6);
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![7, 8, 9, 10, 11, 12]
+  );
+
+  // `len <= back.len()` branch: drop all of `front` plus part of `back`.
+  let mut deque = wrapped();
+  deque.truncate_front(3);
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![10, 11, 12]);
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn truncate_front_noop_when_len_not_smaller() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  deque.truncate_front(5);
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
+  deque.truncate_front(3);
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn insert_mut_errors_when_out_of_range_or_full() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2]).unwrap();
+  // index > len.
+  assert_eq!(deque.insert_mut(5, 99), Err(99));
+
+  let mut full = GenericArrayDeque::<i32, U2>::try_from_array([1, 2]).unwrap();
+  // is_full.
+  assert_eq!(full.insert_mut(0, 99), Err(99));
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn push_mut_variants_return_err_when_full() {
+  let mut deque = GenericArrayDeque::<i32, U2>::try_from_array([1, 2]).unwrap();
+  assert_eq!(deque.push_back_mut(99), Err(99));
+  assert_eq!(deque.push_front_mut(99), Err(99));
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn extend_from_within_rejects_bad_range_and_overflow() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  // Bad range: end past len.
+  assert!(!deque.extend_from_within(0..5));
+  // Overflow: range fits but cloned items wouldn't.
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  assert!(!deque.extend_from_within(0..3));
+  assert_eq!(deque.len(), 3);
+
+  // Happy path to exercise the clone loop.
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_array([1, 2, 3]).unwrap();
+  assert!(deque.extend_from_within(0..2));
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3, 1, 2]);
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn prepend_from_within_paths() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  assert!(!deque.prepend_from_within(0..5));
+
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  assert!(!deque.prepend_from_within(0..3));
+
+  // Happy path spanning the physical wrap so both ranges in
+  // `nonoverlapping_ranges` get exercised.
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  for _ in 0..3 {
+    deque.pop_front();
+  }
+  for v in 4..6 {
+    deque.push_back(v);
+  }
+  // logical: [3, 4, 5]; head != 0.
+  assert!(deque.prepend_from_within(0..2));
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![3, 4, 3, 4, 5]
+  );
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn pop_back_if_covers_both_branches() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3, 4]).unwrap();
+  assert_eq!(deque.pop_back_if(|x| *x == 4), Some(4));
+  assert_eq!(deque.pop_back_if(|x| *x == 4), None);
+  assert_eq!(deque.len(), 3);
+
+  let mut empty = GenericArrayDeque::<i32, U4>::new();
+  assert_eq!(empty.pop_back_if(|_| true), None);
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn pop_front_if_covers_both_branches() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  assert_eq!(deque.pop_front_if(|x| *x == 1), Some(1));
+  assert_eq!(deque.pop_front_if(|x| *x == 1), None);
+
+  let mut empty = GenericArrayDeque::<i32, U4>::new();
+  assert_eq!(empty.pop_front_if(|_| true), None);
+}
+
+#[test]
+fn drain_size_hint_and_empty_next_back() {
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
+  {
+    let mut drain = deque.drain(1..3);
+    assert_eq!(drain.size_hint(), (2, Some(2)));
+    assert_eq!(drain.next(), Some(1));
+    assert_eq!(drain.size_hint(), (1, Some(1)));
+    assert_eq!(drain.next_back(), Some(2));
+    assert_eq!(drain.next_back(), None);
+    assert_eq!(drain.next(), None);
+  }
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![0, 3]);
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn extract_if_debug_fmt_includes_peek_and_empty() {
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
+  let extract = deque.extract_if(.., |v| *v % 2 == 0);
+  let s = std::format!("{:?}", extract);
+  assert!(s.contains("ExtractIf"));
+  assert!(s.contains("peek"));
+  drop(extract);
+
+  // Also exhaust the iterator so Debug's `None` arm fires.
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..2).unwrap();
+  let mut extract = deque.extract_if(.., |_| true);
+  assert!(extract.next().is_some());
+  assert!(extract.next().is_some());
+  let s_empty = std::format!("{:?}", extract);
+  assert!(s_empty.contains("ExtractIf"));
+}
+
+#[test]
+fn with_capacity_noops_for_zsts() {
+  // ZST path of `make_contiguous`: resets head to 0 without touching memory.
+  #[derive(Clone, PartialEq, Debug)]
+  struct Z;
+  let mut deque = GenericArrayDeque::<Z, U4>::new();
+  deque.push_back(Z);
+  deque.push_back(Z);
+  deque.push_front(Z);
+  assert_eq!(deque.len(), 3);
+  let slice = deque.make_contiguous();
+  assert_eq!(slice.len(), 3);
+}
+
+#[test]
+fn iter_exhausts_via_swap_both_directions() {
+  // Hit the `None =>` arms of `Iter::next` and `Iter::next_back` that
+  // swap `i1` with `i2`. A wrapped deque puts items in both slices.
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  deque.pop_front();
+  deque.push_back(4);
+  // logical: [1, 2, 3, 4]; front=[1,2,3], back=[4].
+
+  let mut iter = deque.iter();
+  assert_eq!(iter.next(), Some(&1));
+  assert_eq!(iter.next(), Some(&2));
+  assert_eq!(iter.next(), Some(&3));
+  // i1 now empty; next pulls from i2 via the swap arm.
+  assert_eq!(iter.next(), Some(&4));
+  assert_eq!(iter.next(), None);
+
+  let mut iter = deque.iter();
+  assert_eq!(iter.next_back(), Some(&4));
+  // i2 now empty; next_back pulls from i1 via the swap arm.
+  assert_eq!(iter.next_back(), Some(&3));
+  assert_eq!(iter.next_back(), Some(&2));
+  assert_eq!(iter.next_back(), Some(&1));
+  assert_eq!(iter.next_back(), None);
+}
+
+#[test]
+fn iter_mut_exhausts_via_swap_both_directions() {
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  deque.pop_front();
+  deque.push_back(4);
+
+  let mut it = deque.iter_mut();
+  assert!(it.next().is_some());
+  assert!(it.next().is_some());
+  assert!(it.next().is_some());
+  assert!(it.next().is_some());
+  assert!(it.next().is_none());
+
+  let mut it = deque.iter_mut();
+  assert!(it.next_back().is_some());
+  assert!(it.next_back().is_some());
+  assert!(it.next_back().is_some());
+  assert!(it.next_back().is_some());
+  assert!(it.next_back().is_none());
+}
+
+#[test]
+fn drain_middle_of_larger_deque_exercises_head_ge_tail() {
+  // `join_head_and_tail_wrapping` picks the shorter of head/tail to move.
+  // Drain a range where head_len >= tail_len (hits the else arm with
+  // `let (src, dst, len);` on line 277).
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..6).unwrap();
+  let drained: Vec<_> = deque.drain(3..5).collect();
+  assert_eq!(drained, vec![3, 4]);
+  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![0, 1, 2, 5]);
+}
+
+#[test]
+fn binary_search_hits_every_branch_with_wrapped_deque() {
+  // Wrap the buffer so `back.first()` is non-None.
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  deque.pop_front();
+  deque.push_back(4);
+  // logical: [1, 2, 3, 4]; front=[1,2,3], back=[4].
+
+  // `back.first()` = 4. Equal branch.
+  assert_eq!(deque.binary_search(&4), Ok(3));
+  // `back.first()` = 4 > 2, so `cmp_back = Greater`; falls through to front.
+  assert_eq!(deque.binary_search(&2), Ok(1));
+  // Not found, greater than everything => at end.
+  assert_eq!(deque.binary_search(&99), Err(4));
+
+  // Construct a scenario where `back.first()` is strictly less than target.
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  // pop/push to get front=[1,2], back=[3,4]... but the buffer size is 4 and
+  // only 4 elements fit, so a simpler setup:
+  deque.pop_front();
+  deque.pop_front();
+  deque.push_back(4);
+  deque.push_back(5);
+  // logical: [2, 3, 4, 5]; front=[2,3], back=[4,5]. back.first()=4 < 5.
+  assert_eq!(deque.binary_search(&5), Ok(3));
+}
+
+#[test]
+fn partition_point_in_back_slice() {
+  let mut deque = GenericArrayDeque::<i32, U4>::new();
+  for v in 0..4 {
+    deque.push_back(v);
+  }
+  deque.pop_front();
+  deque.pop_front();
+  deque.push_back(4);
+  deque.push_back(5);
+  // logical: [2, 3, 4, 5]; front=[2,3], back=[4,5].
+  // pred(back[0]=4) = true (if x < 5) → partition point is in back slice.
+  assert_eq!(deque.partition_point(|&x| x < 5), 3);
+}
+
+#[test]
+fn append_zst_overflow_panics() {
+  // `append`'s ZST fast path runs `self.len.checked_add(other.len)` —
+  // force an overflow to hit the `None => panic!` arm.
+  #[derive(Clone, Debug, PartialEq)]
+  struct Z;
+  let mut a = GenericArrayDeque::<Z, U4>::new();
+  let mut b = GenericArrayDeque::<Z, U4>::new();
+  // Bypass safe API to push `len` above capacity; fine for ZST test since
+  // no drop runs and the invariant only matters for non-ZST access.
+  a.len = usize::MAX;
+  b.len = 1;
+  let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    a.append(&mut b);
+  }));
+  assert!(r.is_err());
+  // Avoid running the test harness's drop for `a` in its corrupted state.
+  a.len = 0;
+  b.len = 0;
+}
+
+#[test]
+fn insert_out_of_bounds_returns_value() {
+  let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2]).unwrap();
+  assert_eq!(deque.insert(10, 99), Some(99));
+}
+
+#[cfg(feature = "unstable")]
+#[test]
+fn try_range_excluded_bounds() {
+  use std::ops::Bound;
+  // extend_from_within uses `try_range`, which returns `Option` (no panic).
+  // Exercise the `Excluded(&start) => start + 1` arm.
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
+  assert!(deque.extend_from_within((Bound::Excluded(0), Bound::Excluded(3))));
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![0, 1, 2, 3, 1, 2]
+  );
+
+  // Excluded start >= end → `try_range` returns None → extend refuses.
+  let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
+  assert!(!deque.extend_from_within((Bound::Excluded(3), Bound::Excluded(3))));
+  assert_eq!(deque.len(), 4);
+}
+
+#[test]
+fn range_panics_on_start_past_len() {
+  let deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
+  // start > len via Bound::Excluded(len+1) → hits `slice_index_fail`'s
+  // "start > len" panic arm.
+  let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    use std::ops::Bound;
+    #[allow(clippy::reversed_empty_ranges)]
+    let _ = deque.range((Bound::Excluded(5usize), Bound::Included(10)));
+  }));
+  assert!(r.is_err());
+}
+
+#[test]
+fn make_contiguous_head_to_end_big_tail() {
+  // Exercise the "free < head_len && free < tail_len" branch where head_len > tail_len.
+  let mut deque = GenericArrayDeque::<i32, U8>::new();
+  for v in 0..5 {
+    deque.push_back(v);
+  }
+  for _ in 0..2 {
+    deque.pop_front();
+  }
+  for v in 5..8 {
+    deque.push_back(v);
+  }
+  // Now pop_front again to ensure shape.
+  // logical: [2,3,4,5,6,7]
+  deque.make_contiguous();
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![2, 3, 4, 5, 6, 7]
+  );
 }

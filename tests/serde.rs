@@ -48,3 +48,13 @@ fn deserialize_overflow() {
     "sequence length exceeds capacity",
   );
 }
+
+#[test]
+fn deserialize_rejects_non_sequence() {
+  // Hits `Visitor::expecting`, which is called to format the error
+  // message when the incoming token is not a sequence.
+  assert_de_tokens_error::<GenericArrayDeque<u8, U4>>(
+    &[Token::I32(42)],
+    "invalid type: integer `42`, expected a sequence",
+  );
+}

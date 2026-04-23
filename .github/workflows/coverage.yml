@@ -1,0 +1,137 @@
+name: coverage
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'COPYRIGHT'
+      - 'LICENSE-*'
+      - '**.md'
+      - '**.txt'
+  pull_request:
+    paths-ignore:
+      - 'COPYRIGHT'
+      - 'LICENSE-*'
+      - '**.md'
+      - '**.txt'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Matrix dimensions covered for Codecov to reflect the per-toolchain split of
+# the crate's `rustversion`-gated impls:
+#
+# - rust-stable:   exercises every `#[rustversion::since(X)]` arm — the modern
+#                  codepaths the crate uses on current Rust (e.g. the
+#                  std-provided `split_at_checked`, `<*mut [T]>::len`,
+#                  `core::iter::repeat_n`, const `check_copy_bounds`,
+#                  `core::hint::assert_unchecked`).
+# - rust-1.78:     exercises every `#[rustversion::before(X)]` arm — the
+#                  compatibility fallbacks the crate ships for Rust < 1.79 /
+#                  1.80 / 1.82 / 1.83 / 1.85. 1.78 is below every `before`
+#                  boundary, so a single 1.78 run covers all of them at once.
+#
+# Codecov merges the two reports via flags, so each `since`/`before` pair
+# ends up covered by whichever host compiles it.
+#
+# `--all-features` on each host covers every feature-gated module
+# (`std`, `alloc`, `unstable`, `serde`, `zeroize`, `faster-hex`).
+
+jobs:
+  coverage:
+    name: coverage (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ---- Modern stable: covers `rustversion::since(...)` arms ----
+          - toolchain: stable
+            label: rust-stable
+
+          # ---- Pre-1.79: covers every `rustversion::before(...)` arm ----
+          - toolchain: 1.78.0
+            label: rust-1.78
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust ${{ matrix.toolchain }}
+        # `llvm-tools-preview` is required by `cargo tarpaulin --engine llvm`.
+        # Pre-install nightly too: tarpaulin needs it for `--run-types
+        # doctests` (doctest coverage uses unstable rustdoc flags). If we
+        # don't install it here, tarpaulin auto-invokes `rustup` at test
+        # time, which has hit transient download failures in CI.
+        shell: bash
+        run: |
+          rustup toolchain install ${{ matrix.toolchain }} --component llvm-tools-preview --profile minimal
+          rustup toolchain install nightly --component llvm-tools-preview --profile minimal
+          rustup default ${{ matrix.toolchain }}
+
+      - name: Install cargo-tarpaulin
+        # Prebuilt binary, so it does not need to compile against the target
+        # toolchain — tarpaulin invokes the currently-selected `rustc`
+        # (above) to compile the crate itself.
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
+
+      - name: Generate coverage
+        shell: bash
+        # --cfg tarpaulin:    disables `#[cfg_attr(not(tarpaulin), inline(always))]`
+        #                     hints so instrumentation is not inlined away.
+        # --engine llvm:      the only engine that works uniformly across
+        #                     Rust versions (ptrace is Linux-only and flaky).
+        # --all-features:     exercise every feature-gated module.
+        # --run-types:        lib + tests + doctests, matching the
+        #                     historical `ci.yml` coverage job.
+        env:
+          RUSTFLAGS: "--cfg tarpaulin"
+        run: |
+          mkdir -p coverage
+          cargo tarpaulin \
+            --engine llvm \
+            --all-features \
+            --run-types lib \
+            --run-types tests \
+            --run-types doctests \
+            --workspace \
+            --out xml \
+            --output-dir coverage
+        continue-on-error: false
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.label }}
+          path: coverage/cobertura.xml
+
+  upload-codecov:
+    name: Upload merged coverage to Codecov
+    needs: coverage
+    runs-on: ubuntu-latest
+    if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        label:
+          - rust-stable
+          - rust-1.78
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download ${{ matrix.label }} report
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-${{ matrix.label }}
+          path: coverage/
+
+      - name: Upload ${{ matrix.label }} to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: coverage/cobertura.xml
+          flags: ${{ matrix.label }}
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

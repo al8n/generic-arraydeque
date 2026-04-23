@@ -252,6 +252,45 @@ fn heap_test_extend_basic() {
   assert_eq!(deque[1], "2");
 }
 
+// Regression: `Clone` previously byte-copied the `MaybeUninit<T>` buffer,
+// which double-freed heap-owning types like `String` when both the original
+// and the clone were dropped (UB under Miri).
+#[test]
+fn heap_test_clone_deep_copies_heap_owning_elements() {
+  let mut original = GenericArrayDeque::<String, U4>::new();
+  original.push_back(s("hello"));
+  original.push_front(s("world"));
+
+  let cloned = original.clone();
+
+  assert_eq!(original, cloned);
+  // Each element must own distinct heap storage so both drops are safe.
+  for i in 0..original.len() {
+    assert_ne!(original[i].as_ptr(), cloned[i].as_ptr());
+  }
+  // Mutating one must not affect the other.
+  drop(original);
+  assert_eq!(cloned[0], "world");
+  assert_eq!(cloned[1], "hello");
+}
+
+// Regression: `clone_from` previously inherited the default impl on top of
+// the broken `clone`, so it had the same double-free behavior.
+#[test]
+fn heap_test_clone_from_deep_copies_heap_owning_elements() {
+  let mut dst = GenericArrayDeque::<String, U4>::new();
+  dst.push_back(s("stale-a"));
+  dst.push_back(s("stale-b"));
+  dst.push_back(s("stale-c"));
+
+  let mut src = GenericArrayDeque::<String, U4>::new();
+  src.push_back(s("fresh"));
+
+  dst.clone_from(&src);
+  assert_eq!(dst, src);
+  assert_ne!(dst[0].as_ptr(), src[0].as_ptr());
+}
+
 #[test]
 fn heap_make_contiguous_big_head() {
   let mut tester = GenericArrayDeque::<String, U15>::new();

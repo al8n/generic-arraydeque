@@ -163,18 +163,38 @@ where
   T: Clone,
   N: ArrayLength,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
     let mut deq = Self::new();
-    if mem::size_of::<T>() != 0 {
-      // SAFETY: ensures that there is enough capacity.
+    // Clone each initialized element into a fresh, contiguous deque.
+    // With `head == 0`, logical index == physical index, so writing at
+    // `deq.len` is correct. Incrementing `len` only after a successful
+    // `write` keeps `deq` in a valid, drop-safe state if a user `Clone`
+    // impl panics mid-way.
+    for item in self.iter() {
+      let cloned = item.clone();
+      // SAFETY: self.len <= N::USIZE, deq.len < self.len here, so the
+      // slot is within the array.
       unsafe {
-        ptr::copy_nonoverlapping(self.array.as_ptr(), deq.ptr_mut() as _, N::USIZE);
+        deq.ptr_mut().add(deq.len).write(MaybeUninit::new(cloned));
       }
+      deq.len += 1;
     }
-    deq.head = self.head;
-    deq.len = self.len;
     deq
+  }
+
+  fn clone_from(&mut self, source: &Self) {
+    // Drop whatever we currently hold, then clone source element-by-element.
+    // This matches the semantics of `*self = source.clone()` but avoids
+    // allocating an intermediate deque.
+    self.clear();
+    for item in source.iter() {
+      let cloned = item.clone();
+      // SAFETY: self.len < source.len <= N::USIZE, so the slot is in bounds.
+      unsafe {
+        self.ptr_mut().add(self.len).write(MaybeUninit::new(cloned));
+      }
+      self.len += 1;
+    }
   }
 }
 
@@ -691,15 +711,12 @@ where
     iter: I,
   ) -> Option<Chain<Once<T>, I::IntoIter>> {
     let mut iterator = iter.into_iter();
+
     for idx in self.len..N::USIZE {
-      match iterator.next() {
-        Some(value) => {
-          let idx = self.to_physical_idx(idx);
-          self.array[idx].write(value);
-          self.len += 1;
-        }
-        None => return None,
-      }
+      let value = iterator.next()?;
+      let idx = self.to_physical_idx(idx);
+      self.array[idx].write(value);
+      self.len += 1;
     }
 
     iterator.next().map(|value| once(value).chain(iterator))
@@ -732,8 +749,15 @@ where
     }
 
     let mut deq = Self::new();
-    for (idx, value) in iter.enumerate() {
-      deq.array[idx].write(value);
+    // `ExactSizeIterator::len()` is a safe trait method, so a misbehaving
+    // impl may still yield more items than advertised. Stop once the
+    // buffer is full to preserve the capacity invariant and drop the
+    // remaining items as the iterator falls out of scope.
+    for value in iter {
+      if deq.len == N::USIZE {
+        break;
+      }
+      deq.array[deq.len].write(value);
       deq.len += 1;
     }
     Ok(deq)
@@ -768,7 +792,15 @@ where
       return Some(iter);
     }
 
+    // `to_physical_idx` wraps modulo capacity, so it never panics even when
+    // a lying `ExactSizeIterator` yields more items than advertised.
+    // Without a bound, those extra writes would overwrite live slots and
+    // push `self.len` past capacity, which later turns into UB when
+    // `as_slices` / drop try to read past the buffer. Stop at capacity.
     for value in iter {
+      if self.len == N::USIZE {
+        break;
+      }
       let idx = self.to_physical_idx(self.len);
       self.array[idx].write(value);
       self.len += 1;

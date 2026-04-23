@@ -16,3 +16,9 @@
 
 /target
 Cargo.lock
+**.claude/
+
+# Local tarpaulin output
+cobertura.xml
+coverage/
+coverage-*/

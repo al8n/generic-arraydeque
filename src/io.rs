@@ -1,4 +1,4 @@
-use core::str::{from_utf8, from_utf8_unchecked};
+use core::str::from_utf8;
 use std::io::{self, BufRead, IoSlice, Read, Write};
 
 use super::{ArrayLength, GenericArrayDeque};
@@ -49,7 +49,8 @@ impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
           buf_back.copy_from_slice(back);
         }
         None => {
-          self.clear();
+          // Leave the buffered data in place — matches `VecDeque`'s
+          // behavior and lets the caller retry or fall back to `read`.
           return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
             "failed to fill whole buffer",
@@ -79,24 +80,29 @@ impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
 
   #[inline]
   fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-    let (front, back) = self.as_slices();
-    if from_utf8(front).is_err() || from_utf8(back).is_err() {
-      return Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "stream did not contain valid UTF-8",
-      ));
-    }
+    // A single UTF-8 codepoint may straddle the ring's split point, so
+    // validate the concatenated byte stream rather than each half.
+    // `make_contiguous` reorganizes the physical buffer in place; after it,
+    // `as_slices` returns everything in the front slice.
+    let bytes = self.make_contiguous();
+    let s = match from_utf8(bytes) {
+      Ok(s) => s,
+      Err(_) => {
+        return Err(io::Error::new(
+          io::ErrorKind::InvalidData,
+          "stream did not contain valid UTF-8",
+        ));
+      }
+    };
 
-    let len = self.len();
     buf
-      .try_reserve(len)
+      .try_reserve(s.len())
       .map_err(|_| io::ErrorKind::OutOfMemory)?;
 
-    // SAFETY: We have already verified that the data is valid UTF-8
-    unsafe {
-      buf.push_str(from_utf8_unchecked(front));
-      buf.push_str(from_utf8_unchecked(back));
-    }
+    let len = s.len();
+    buf.push_str(s);
+    // Match the `Read::read_to_string` contract: the source is consumed.
+    self.clear();
     Ok(len)
   }
 }
@@ -127,24 +133,35 @@ impl<N: ArrayLength> Write for GenericArrayDeque<u8, N> {
       return Ok(0);
     }
 
-    self.extend_bytes(buf[..remaining.min(buf.len())].as_ref());
-    Ok(buf.len())
+    let n = remaining.min(buf.len());
+    self.extend_bytes(&buf[..n]);
+    Ok(n)
   }
 
   #[inline]
   fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
-    let len = bufs.iter().map(|b| b.len()).sum();
-    if len > self.remaining_capacity() {
-      return Err(io::Error::new(
-        io::ErrorKind::WriteZero,
-        "not enough capacity to write buffer",
-      ));
-    }
-
+    // Behave like `write` concatenated over the buffers: write as much as
+    // fits and report the actual byte count. Returning `WriteZero` when
+    // the combined length exceeds capacity would be inconsistent with the
+    // scalar `write`, which performs partial writes.
+    let mut written = 0;
     for buf in bufs {
-      self.extend_bytes(buf);
+      let remaining = self.remaining_capacity();
+      if remaining == 0 {
+        break;
+      }
+      let n = remaining.min(buf.len());
+      if n == 0 {
+        continue;
+      }
+      self.extend_bytes(&buf[..n]);
+      written += n;
+      if n < buf.len() {
+        // Ran out of room mid-buffer; a further `write` would return 0.
+        break;
+      }
     }
-    Ok(len)
+    Ok(written)
   }
 
   #[inline]
@@ -286,6 +303,9 @@ mod tests {
     let mut buf = [0u8; 2];
     let err = Read::read_exact(&mut deque, &mut buf).unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    // The buffered byte must remain in the deque — matches `VecDeque`.
+    assert_eq!(deque.len(), 1);
+    assert_eq!(deque.pop_front(), Some(b'x'));
   }
 
   #[test]
@@ -305,7 +325,8 @@ mod tests {
     let mut string = String::new();
     deque.read_to_string(&mut string).unwrap();
     assert_eq!(string, "de");
-    assert_eq!(deque.len(), 2);
+    // `read_to_string` consumes the source, like the `Read` contract demands.
+    assert!(deque.is_empty());
 
     deque.clear();
     deque.push_back(0xFF);
@@ -331,16 +352,19 @@ mod tests {
   fn write_variants_respect_capacity() {
     let mut deque = GenericArrayDeque::<u8, U4>::new();
     let written = Write::write(&mut deque, b"abcdef").unwrap();
-    assert_eq!(written, 6);
+    assert_eq!(written, 4);
     assert_eq!(deque.len(), 4);
 
     let mut deque = GenericArrayDeque::<u8, U8>::new();
     let slices = [IoSlice::new(b"ab"), IoSlice::new(b"cd")];
     assert_eq!(Write::write_vectored(&mut deque, &slices).unwrap(), 4);
     assert_eq!(deque.len(), 4);
+    // When the combined length exceeds remaining capacity, `write_vectored`
+    // performs a partial write (matching scalar `write`) rather than erroring.
     let overflow = [IoSlice::new(b"1234"), IoSlice::new(b"5678")];
-    let err = Write::write_vectored(&mut deque, &overflow).unwrap_err();
-    assert_eq!(err.kind(), io::ErrorKind::WriteZero);
+    let written = Write::write_vectored(&mut deque, &overflow).unwrap();
+    assert_eq!(written, 4);
+    assert_eq!(deque.len(), 8);
 
     let mut deque = GenericArrayDeque::<u8, U4>::new();
     Write::write_all(&mut deque, b"wxyz").unwrap();
@@ -349,5 +373,84 @@ mod tests {
 
     let mut deque = GenericArrayDeque::<u8, U2>::new();
     Write::flush(&mut deque).unwrap();
+  }
+
+  // Regression: previously, `read_to_string` validated front and back slices
+  // independently, so a codepoint whose bytes straddled the ring boundary
+  // was rejected as InvalidData.
+  #[test]
+  fn read_to_string_accepts_utf8_across_ring_boundary() {
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    // Push 3 padding bytes then `é`'s leading byte; rotate head so `é`
+    // ends up split across the physical buffer boundary.
+    for _ in 0..3 {
+      assert!(deque.push_back(b'x').is_none());
+    }
+    assert!(deque.push_back(0xC3).is_none());
+    for _ in 0..3 {
+      deque.pop_front();
+    }
+    assert!(deque.push_back(0xA9).is_none());
+    // Confirm the bytes are actually split (each half is invalid UTF-8 alone).
+    let (front, back) = deque.as_slices();
+    assert_eq!(front, &[0xC3]);
+    assert_eq!(back, &[0xA9]);
+
+    let mut s = String::new();
+    let n = deque.read_to_string(&mut s).unwrap();
+    assert_eq!(n, 2);
+    assert_eq!(s, "é");
+    assert!(deque.is_empty());
+  }
+
+  // Regression: `write_vectored` used to return `WriteZero` when the combined
+  // buffers exceeded remaining capacity, while `write` did partial writes.
+  #[test]
+  fn write_vectored_does_partial_writes() {
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let slices = [IoSlice::new(b"12"), IoSlice::new(b"345")];
+    let n = Write::write_vectored(&mut deque, &slices).unwrap();
+    assert_eq!(n, 4);
+    assert_eq!(deque.len(), 4);
+    assert_eq!(deque.iter().copied().collect::<Vec<_>>(), b"1234");
+  }
+
+  #[test]
+  fn read_exact_from_front_slice_only() {
+    // Exercise the `split_at_mut_checked` → None arm where `buf` fits entirely
+    // within the front slice.
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    for byte in b"abcd" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+    let mut buf = [0u8; 2];
+    deque.read_exact(&mut buf).unwrap();
+    assert_eq!(&buf, b"ab");
+    assert_eq!(deque.iter().copied().collect::<Vec<_>>(), b"cd");
+  }
+
+  #[test]
+  fn write_on_full_and_empty_buf_returns_zero() {
+    // `remaining == 0` branch.
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    for byte in b"abcd" {
+      assert!(deque.push_back(*byte).is_none());
+    }
+    assert_eq!(Write::write(&mut deque, b"xx").unwrap(), 0);
+
+    // `buf.is_empty()` branch.
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    assert_eq!(Write::write(&mut deque, b"").unwrap(), 0);
+  }
+
+  #[test]
+  fn write_vectored_skips_empty_slices() {
+    // Exercise the `n == 0 { continue }` arm without hitting the full-capacity
+    // break first.
+    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let slices = [IoSlice::new(b""), IoSlice::new(b"ab")];
+    let n = Write::write_vectored(&mut deque, &slices).unwrap();
+    assert_eq!(n, 2);
+    assert_eq!(deque.iter().copied().collect::<Vec<_>>(), b"ab");
   }
 }
