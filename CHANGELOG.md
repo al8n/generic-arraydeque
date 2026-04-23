@@ -1,5 +1,7 @@
 # UNRELEASED
 
+# 0.2.0 (Apr 23rd, 2026)
+
 BUG FIXES
 
 - Fix undefined behavior in `Clone` and `clone_from`: previously byte-copied
