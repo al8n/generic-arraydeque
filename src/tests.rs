@@ -14,7 +14,7 @@ macro_rules! struct_with_counted_drop {
         #[derive(Clone, Debug, PartialEq)]
         struct $struct_name $(( $( $elt_ty ),+ ))?;
 
-        impl ::std::ops::Drop for $struct_name {
+        impl ::core::ops::Drop for $struct_name {
             fn drop(&mut self) {
                 $drop_counter.set($drop_counter.get() + 1);
 
@@ -31,7 +31,7 @@ macro_rules! struct_with_counted_drop {
         #[derive(Clone, Debug, PartialEq)]
         struct $struct_name $(( $( $elt_ty ),+ ))?;
 
-        impl ::std::ops::Drop for $struct_name {
+        impl ::core::ops::Drop for $struct_name {
             fn drop(&mut self) {
                 $drop_counter.with_borrow_mut(|counter| {
                     *counter.entry($drop_key(self)).or_default() += 1;
@@ -682,6 +682,8 @@ fn test_drain() {
 #[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn issue_108453() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<_, U10>::new();
 
   deque.push_back(1u8);
@@ -1608,10 +1610,11 @@ fn ord_and_partial_ord_use_lexicographic_iter_order() {
   assert_eq!(a.cmp(&a), Ordering::Equal);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn hash_is_stable_across_layouts() {
+  use core::hash::{Hash, Hasher};
   use std::collections::hash_map::DefaultHasher;
-  use std::hash::{Hash, Hasher};
 
   let contiguous = GenericArrayDeque::<i32, U6>::try_from_array([1, 2, 3, 4]).unwrap();
   let mut wrapped = GenericArrayDeque::<i32, U6>::new();
@@ -1672,7 +1675,7 @@ fn binary_search_hits_back_slice_branches() {
 
   assert_eq!(deque.binary_search(&3), Ok(0));
   // Hit the `Equal` on `back.first()` branch.
-  assert!(matches!(deque.binary_search(&5), Ok(_)));
+  assert!(deque.binary_search(&5).is_ok());
   // Hit the `Less` on `back.first()` branch (target strictly greater).
   assert_eq!(deque.binary_search(&7), Ok(4));
   // Not found, past the end.
@@ -1724,8 +1727,10 @@ fn retain_keeps_all_and_drops_all() {
   assert!(deque.is_empty());
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn retain_mut_mutates_in_place() {
+  use std::{vec, vec::Vec};
   let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..5).unwrap();
   deque.retain_mut(|x| {
     *x *= 2;
@@ -1735,8 +1740,11 @@ fn retain_mut_mutates_in_place() {
   assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![0, 2, 6, 8]);
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn resize_with_rejects_when_over_capacity() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U4>::new();
   // Requested new_len exceeds capacity => false.
   assert!(!deque.resize_with(5, || 0));
@@ -1748,8 +1756,11 @@ fn resize_with_rejects_when_over_capacity() {
   assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![7]);
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn copy_slice_split_at_exercises_wrap() {
+  use std::{vec, vec::Vec};
+
   // This test exercises `copy_slice`'s wrap branch via `append`.
   let mut dst = GenericArrayDeque::<i32, U8>::new();
   // Advance the head so that appending a slice ends up wrapping.
@@ -1773,8 +1784,11 @@ fn copy_slice_split_at_exercises_wrap() {
 // Exercise them via `rotate_left` / `rotate_right` / `insert` / `remove` on deques
 // whose head position puts the copy in each regime.
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn rotate_left_across_wrap() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U8>::new();
   for v in 0..6 {
     deque.push_back(v);
@@ -1793,8 +1807,11 @@ fn rotate_left_across_wrap() {
   );
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn rotate_right_across_wrap() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U8>::new();
   for v in 0..6 {
     deque.push_back(v);
@@ -1812,8 +1829,11 @@ fn rotate_right_across_wrap() {
   );
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn insert_and_remove_at_every_position_wrapping() {
+  use std::vec::Vec;
+
   // Stress `wrap_copy`'s 8 branches by performing insert/remove at every
   // position on a wrapped deque. Each pair should round-trip.
   for head_pos in 0..8 {
@@ -1828,14 +1848,12 @@ fn insert_and_remove_at_every_position_wrapping() {
       assert_eq!(deque.insert(at, 99), None);
       assert_eq!(deque.remove(at), Some(99));
       let after: Vec<_> = deque.iter().copied().collect();
-      assert_eq!(
-        before, after,
-        "head_pos={head_pos}, at={at}"
-      );
+      assert_eq!(before, after, "head_pos={head_pos}, at={at}");
     }
   }
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn drain_debug_fmt() {
   let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
@@ -1843,6 +1861,7 @@ fn drain_debug_fmt() {
   let _ = std::format!("{:?}", drain);
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn iter_debug_fmt_shows_both_slices() {
   let mut deque = GenericArrayDeque::<i32, U4>::new();
@@ -1870,7 +1889,7 @@ fn range_bounds_invalid_panics() {
 
   // start > end panics.
   let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-    use std::ops::Bound;
+    use core::ops::Bound;
     let _ = deque.range((Bound::Excluded(2), Bound::Included(1)));
   }));
   assert!(r.is_err());
@@ -1879,8 +1898,10 @@ fn range_bounds_invalid_panics() {
 // --- Additional coverage: unstable APIs, drain internals, make_contiguous edges ---
 
 #[cfg(feature = "unstable")]
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn truncate_front_keeps_last_items() {
+  use std::{vec, vec::Vec};
   // Build a physically-wrapped deque so both branches of `truncate_front`
   // are reachable: front=[5,6,7], back=[8,9,10,11,12].
   fn wrapped() -> GenericArrayDeque<i32, U8> {
@@ -1911,9 +1932,12 @@ fn truncate_front_keeps_last_items() {
   assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![10, 11, 12]);
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[cfg(feature = "unstable")]
 #[test]
 fn truncate_front_noop_when_len_not_smaller() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
   deque.truncate_front(5);
   assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
@@ -1941,9 +1965,12 @@ fn push_mut_variants_return_err_when_full() {
   assert_eq!(deque.push_front_mut(99), Err(99));
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[cfg(feature = "unstable")]
 #[test]
 fn extend_from_within_rejects_bad_range_and_overflow() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
   // Bad range: end past len.
   assert!(!deque.extend_from_within(0..5));
@@ -1955,12 +1982,18 @@ fn extend_from_within_rejects_bad_range_and_overflow() {
   // Happy path to exercise the clone loop.
   let mut deque = GenericArrayDeque::<i32, U8>::try_from_array([1, 2, 3]).unwrap();
   assert!(deque.extend_from_within(0..2));
-  assert_eq!(deque.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3, 1, 2]);
+  assert_eq!(
+    deque.iter().copied().collect::<Vec<_>>(),
+    vec![1, 2, 3, 1, 2]
+  );
 }
 
 #[cfg(feature = "unstable")]
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn prepend_from_within_paths() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
   assert!(!deque.prepend_from_within(0..5));
 
@@ -2010,8 +2043,11 @@ fn pop_front_if_covers_both_branches() {
   assert_eq!(empty.pop_front_if(|_| true), None);
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn drain_size_hint_and_empty_next_back() {
+  use std::{vec, vec::Vec};
+
   let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
   {
     let mut drain = deque.drain(1..3);
@@ -2026,6 +2062,7 @@ fn drain_size_hint_and_empty_next_back() {
 }
 
 #[cfg(feature = "unstable")]
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn extract_if_debug_fmt_includes_peek_and_empty() {
   let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
@@ -2111,8 +2148,11 @@ fn iter_mut_exhausts_via_swap_both_directions() {
   assert!(it.next_back().is_none());
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn drain_middle_of_larger_deque_exercises_head_ge_tail() {
+  use std::{vec, vec::Vec};
+
   // `join_head_and_tail_wrapping` picks the shorter of head/tail to move.
   // Drain a range where head_len >= tail_len (hits the else arm with
   // `let (src, dst, len);` on line 277).
@@ -2198,9 +2238,11 @@ fn insert_out_of_bounds_returns_value() {
 }
 
 #[cfg(feature = "unstable")]
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn try_range_excluded_bounds() {
-  use std::ops::Bound;
+  use core::ops::Bound;
+  use std::{vec, vec::Vec};
   // extend_from_within uses `try_range`, which returns `Option` (no panic).
   // Exercise the `Excluded(&start) => start + 1` arm.
   let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter(0..4).unwrap();
@@ -2222,15 +2264,18 @@ fn range_panics_on_start_past_len() {
   // start > len via Bound::Excluded(len+1) → hits `slice_index_fail`'s
   // "start > len" panic arm.
   let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-    use std::ops::Bound;
+    use core::ops::Bound;
     #[allow(clippy::reversed_empty_ranges)]
     let _ = deque.range((Bound::Excluded(5usize), Bound::Included(10)));
   }));
   assert!(r.is_err());
 }
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn make_contiguous_head_to_end_big_tail() {
+  use std::{vec, vec::Vec};
+
   // Exercise the "free < head_len && free < tail_len" branch where head_len > tail_len.
   let mut deque = GenericArrayDeque::<i32, U8>::new();
   for v in 0..5 {

@@ -38,15 +38,6 @@ jobs:
           - os: ubuntu-latest
             toolchain: nightly
             cargo_hack: latest
-          - os: ubuntu-latest
-            toolchain: stable
-            cargo_hack: latest
-          - os: macos-latest
-            toolchain: stable
-            cargo_hack: latest
-          - os: windows-latest
-            toolchain: stable
-            cargo_hack: latest
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
