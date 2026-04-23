@@ -1555,6 +1555,7 @@ fn extract_if_pred_panic_leak() {
 // Coverage fillers: hit branches that nominal tests miss.
 // ---------------------------------------------------------------------------
 
+#[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn debug_impl_renders_elements_in_logical_order() {
   let mut deque = GenericArrayDeque::<i32, U8>::new();
@@ -1601,7 +1602,7 @@ fn partial_eq_across_ring_splits() {
 
 #[test]
 fn ord_and_partial_ord_use_lexicographic_iter_order() {
-  use std::cmp::Ordering;
+  use core::cmp::Ordering;
   let a = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
   let b = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 4]).unwrap();
   assert!(a < b);
@@ -1877,6 +1878,7 @@ fn iter_debug_fmt_shows_both_slices() {
   let _ = std::format!("{:?}", deque.clone().into_iter());
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn range_bounds_invalid_panics() {
   let deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
@@ -2210,6 +2212,7 @@ fn partition_point_in_back_slice() {
   assert_eq!(deque.partition_point(|&x| x < 5), 3);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn append_zst_overflow_panics() {
   // `append`'s ZST fast path runs `self.len.checked_add(other.len)` —
@@ -2258,6 +2261,7 @@ fn try_range_excluded_bounds() {
   assert_eq!(deque.len(), 4);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn range_panics_on_start_past_len() {
   let deque = GenericArrayDeque::<i32, U4>::try_from_array([1, 2, 3]).unwrap();
