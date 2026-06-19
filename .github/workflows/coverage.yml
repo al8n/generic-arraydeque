@@ -55,7 +55,7 @@ jobs:
             label: rust-1.78
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust ${{ matrix.toolchain }}
         # `llvm-tools-preview` is required by `cargo tarpaulin --engine llvm`.
@@ -119,7 +119,7 @@ jobs:
           - rust-stable
           - rust-1.78
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download ${{ matrix.label }} report
         uses: actions/download-artifact@v6
