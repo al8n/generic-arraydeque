@@ -109,7 +109,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Cache cargo build and registry
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -174,7 +174,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Cache cargo build and registry
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           ~/.cargo/registry
@@ -243,7 +243,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Cache cargo build and registry
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           ~/.cargo/registry
@@ -261,7 +261,7 @@ jobs:
       with:
         tool: cargo-hack@${{ matrix.cargo_hack }}
     - name: Cache ~/.cargo
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/.cargo
         key: ${{ runner.os }}-coverage-dotcargo
@@ -279,7 +279,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Cache cargo build and registry
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -344,7 +344,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Cache cargo build and registry
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -409,7 +409,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Cache cargo build and registry
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -433,7 +433,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Cache cargo build and registry
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
