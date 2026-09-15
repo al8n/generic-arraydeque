@@ -1,10 +1,10 @@
 use core::str::from_utf8;
 use std::io::{self, BufRead, IoSlice, Read, Write};
 
-use super::{ArrayLength, GenericArrayDeque};
+use super::{ArrayDeque, ArrayLength};
 
-impl<N: ArrayLength> GenericArrayDeque<u8, N> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+impl<N: ArrayLength> ArrayDeque<u8, N> {
+  #[inline(always)]
   fn extend_bytes(&mut self, buf: &[u8]) {
     let written = unsafe {
       self.write_iter_wrapping(
@@ -22,10 +22,10 @@ impl<N: ArrayLength> GenericArrayDeque<u8, N> {
   }
 }
 
-/// Read is implemented for `GenericArrayDeque<u8>` by consuming bytes from the front of the `GenericArrayDeque`.
-impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
+/// Read is implemented for `ArrayDeque<u8>` by consuming bytes from the front of the `ArrayDeque`.
+impl<N: ArrayLength> Read for ArrayDeque<u8, N> {
   /// Fill `buf` with the contents of the "front" slice as returned by
-  /// [`as_slices`][`GenericArrayDeque::as_slices`]. If the contained byte slices of the `GenericArrayDeque` are
+  /// [`as_slices`][`ArrayDeque::as_slices`]. If the contained byte slices of the `ArrayDeque` are
   /// discontiguous, multiple calls to `read` will be needed to read the entire content.
   #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -107,10 +107,10 @@ impl<N: ArrayLength> Read for GenericArrayDeque<u8, N> {
   }
 }
 
-/// BufRead is implemented for `GenericArrayDeque<u8>` by reading bytes from the front of the `GenericArrayDeque`.
-impl<N: ArrayLength> BufRead for GenericArrayDeque<u8, N> {
+/// BufRead is implemented for `ArrayDeque<u8>` by reading bytes from the front of the `ArrayDeque`.
+impl<N: ArrayLength> BufRead for ArrayDeque<u8, N> {
   /// Returns the contents of the "front" slice as returned by
-  /// [`as_slices`][`GenericArrayDeque::as_slices`]. If the contained byte slices of the `GenericArrayDeque` are
+  /// [`as_slices`][`ArrayDeque::as_slices`]. If the contained byte slices of the `ArrayDeque` are
   /// discontiguous, multiple calls to `fill_buf` will be needed to read the entire content.
   #[inline]
   fn fill_buf(&mut self) -> io::Result<&[u8]> {
@@ -124,8 +124,8 @@ impl<N: ArrayLength> BufRead for GenericArrayDeque<u8, N> {
   }
 }
 
-/// Write is implemented for `GenericArrayDeque<u8>` by appending to the `GenericArrayDeque`, growing it as needed.
-impl<N: ArrayLength> Write for GenericArrayDeque<u8, N> {
+/// Write is implemented for `ArrayDeque<u8>` by appending to the `ArrayDeque`, growing it as needed.
+impl<N: ArrayLength> Write for ArrayDeque<u8, N> {
   #[inline]
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     let remaining = self.remaining_capacity();
@@ -192,73 +192,27 @@ trait SplitAtMut {
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)>;
 }
 
-#[rustversion::since(1.80)]
 impl<T> SplitAt for [T] {
   #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
     <[T]>::split_at_checked(self, mid)
   }
 }
 
-#[rustversion::before(1.80)]
-impl<T> SplitAt for [T] {
-  #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
-    use core::slice::from_raw_parts;
-
-    let len = self.len();
-    if mid <= len {
-      // SAFETY: `0 <= mid <= self.len()`
-      Some(unsafe {
-        (
-          from_raw_parts(self.as_ptr(), mid),
-          from_raw_parts(self.as_ptr().add(mid), len - mid),
-        )
-      })
-    } else {
-      None
-    }
-  }
-}
-
-#[rustversion::since(1.80)]
 impl<T> SplitAtMut for [T] {
   #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
     <[T]>::split_at_mut_checked(self, mid)
-  }
-}
-
-#[rustversion::before(1.80)]
-impl<T> SplitAtMut for [T] {
-  #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
-    use core::slice::from_raw_parts_mut;
-    let len = self.len();
-    if mid <= len {
-      let len = self.len();
-      // SAFETY: `0 <= mid <= self.len()`, so the two slices do not overlap.
-      Some(unsafe {
-        (
-          from_raw_parts_mut(self.as_mut_ptr(), mid),
-          from_raw_parts_mut(self.as_mut_ptr().add(mid), len - mid),
-        )
-      })
-    } else {
-      None
-    }
   }
 }
 
 #[cfg(test)]
 mod tests {
   use crate::{
+    ArrayDeque,
     typenum::{U2, U4, U6, U8},
-    GenericArrayDeque,
   };
   use std::{
     io::{self, BufRead, IoSlice, Read, Write},
@@ -268,7 +222,7 @@ mod tests {
 
   #[test]
   fn read_consumes_front_slice() {
-    let mut deque = GenericArrayDeque::<u8, U8>::new();
+    let mut deque = ArrayDeque::<u8, U8>::new();
     for byte in b"hello" {
       assert!(deque.push_back(*byte).is_none());
     }
@@ -282,7 +236,7 @@ mod tests {
 
   #[test]
   fn read_exact_handles_wrapped_storage() {
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     for byte in b"abcd" {
       assert!(deque.push_back(*byte).is_none());
     }
@@ -297,7 +251,7 @@ mod tests {
 
   #[test]
   fn read_exact_reports_eof() {
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     assert!(deque.push_back(b'x').is_none());
 
     let mut buf = [0u8; 2];
@@ -310,7 +264,7 @@ mod tests {
 
   #[test]
   fn read_to_end_and_string_clear_buffer() {
-    let mut deque = GenericArrayDeque::<u8, U6>::new();
+    let mut deque = ArrayDeque::<u8, U6>::new();
     for byte in b"abc" {
       assert!(deque.push_back(*byte).is_none());
     }
@@ -337,7 +291,7 @@ mod tests {
 
   #[test]
   fn bufread_fill_and_consume() {
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     for byte in b"abcd" {
       assert!(deque.push_back(*byte).is_none());
     }
@@ -350,12 +304,12 @@ mod tests {
 
   #[test]
   fn write_variants_respect_capacity() {
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     let written = Write::write(&mut deque, b"abcdef").unwrap();
     assert_eq!(written, 4);
     assert_eq!(deque.len(), 4);
 
-    let mut deque = GenericArrayDeque::<u8, U8>::new();
+    let mut deque = ArrayDeque::<u8, U8>::new();
     let slices = [IoSlice::new(b"ab"), IoSlice::new(b"cd")];
     assert_eq!(Write::write_vectored(&mut deque, &slices).unwrap(), 4);
     assert_eq!(deque.len(), 4);
@@ -366,12 +320,12 @@ mod tests {
     assert_eq!(written, 4);
     assert_eq!(deque.len(), 8);
 
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     Write::write_all(&mut deque, b"wxyz").unwrap();
     let err = Write::write_all(&mut deque, b"overflow").unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::WriteZero);
 
-    let mut deque = GenericArrayDeque::<u8, U2>::new();
+    let mut deque = ArrayDeque::<u8, U2>::new();
     Write::flush(&mut deque).unwrap();
   }
 
@@ -380,7 +334,7 @@ mod tests {
   // was rejected as InvalidData.
   #[test]
   fn read_to_string_accepts_utf8_across_ring_boundary() {
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     // Push 3 padding bytes then `é`'s leading byte; rotate head so `é`
     // ends up split across the physical buffer boundary.
     for _ in 0..3 {
@@ -407,7 +361,7 @@ mod tests {
   // buffers exceeded remaining capacity, while `write` did partial writes.
   #[test]
   fn write_vectored_does_partial_writes() {
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     let slices = [IoSlice::new(b"12"), IoSlice::new(b"345")];
     let n = Write::write_vectored(&mut deque, &slices).unwrap();
     assert_eq!(n, 4);
@@ -419,7 +373,7 @@ mod tests {
   fn read_exact_from_front_slice_only() {
     // Exercise the `split_at_mut_checked` → None arm where `buf` fits entirely
     // within the front slice.
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     for byte in b"abcd" {
       assert!(deque.push_back(*byte).is_none());
     }
@@ -432,14 +386,14 @@ mod tests {
   #[test]
   fn write_on_full_and_empty_buf_returns_zero() {
     // `remaining == 0` branch.
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     for byte in b"abcd" {
       assert!(deque.push_back(*byte).is_none());
     }
     assert_eq!(Write::write(&mut deque, b"xx").unwrap(), 0);
 
     // `buf.is_empty()` branch.
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     assert_eq!(Write::write(&mut deque, b"").unwrap(), 0);
   }
 
@@ -447,7 +401,7 @@ mod tests {
   fn write_vectored_skips_empty_slices() {
     // Exercise the `n == 0 { continue }` arm without hitting the full-capacity
     // break first.
-    let mut deque = GenericArrayDeque::<u8, U4>::new();
+    let mut deque = ArrayDeque::<u8, U4>::new();
     let slices = [IoSlice::new(b""), IoSlice::new(b"ab")];
     let n = Write::write_vectored(&mut deque, &slices).unwrap();
     assert_eq!(n, 2);

@@ -1,24 +1,24 @@
 use core::{fmt, iter::FusedIterator};
 
-use super::{ArrayLength, GenericArrayDeque};
+use super::{ArrayDeque, ArrayLength};
 
-/// An owning iterator over the elements of a [`GenericArrayDeque`].
+/// An owning iterator over the elements of a [`ArrayDeque`].
 ///
-/// This `struct` is created by the [`into_iter`] method on [`GenericArrayDeque`]
+/// This `struct` is created by the [`into_iter`] method on [`ArrayDeque`]
 /// (provided by the [`IntoIterator`] trait). See its documentation for more.
 ///
-/// [`GenericArrayDeque`]: crate::GenericArrayDeque
-/// [`into_iter`]: GenericArrayDeque::into_iter
+/// [`ArrayDeque`]: crate::ArrayDeque
+/// [`into_iter`]: ArrayDeque::into_iter
 #[derive(Clone)]
 pub struct IntoIter<T, N>
 where
   N: ArrayLength,
 {
-  inner: GenericArrayDeque<T, N>,
+  inner: ArrayDeque<T, N>,
 }
 
 impl<T, N: ArrayLength> IntoIter<T, N> {
-  pub(super) fn new(inner: GenericArrayDeque<T, N>) -> Self {
+  pub(super) fn new(inner: ArrayDeque<T, N>) -> Self {
     IntoIter { inner }
   }
 }
@@ -74,13 +74,13 @@ impl<T, N: ArrayLength> FusedIterator for IntoIter<T, N> {}
 mod tests {
   use super::IntoIter;
   use crate::{
+    ArrayDeque,
     typenum::{U4, U8},
-    GenericArrayDeque,
   };
 
   #[test]
   fn iterator_behaves_like_queue() {
-    let mut deque = GenericArrayDeque::<_, U8>::new();
+    let mut deque = ArrayDeque::<_, U8>::new();
     for value in 0..5 {
       assert!(deque.push_back(value).is_none());
     }
@@ -99,7 +99,7 @@ mod tests {
   #[allow(clippy::unnecessary_fold)]
   #[test]
   fn fold_and_last_cover_all_items() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }
@@ -112,7 +112,7 @@ mod tests {
 
   #[test]
   fn size_hint_shrinks_as_items_consumed() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }

@@ -1,4 +1,4 @@
-use generic_arraydeque::{typenum::U8, GenericArrayDeque};
+use generic_arraydeque::{typenum::U8, ArrayDeque};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ fn main() {
   let drops = Rc::new(RefCell::new(Vec::new()));
 
   {
-    let mut deque = GenericArrayDeque::<DropTracker, U8>::new();
+    let mut deque = ArrayDeque::<DropTracker, U8>::new();
 
     for id in 0..4 {
       assert!(deque.push_back(DropTracker::new(&drops, id)).is_none());

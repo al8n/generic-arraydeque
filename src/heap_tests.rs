@@ -19,15 +19,15 @@ macro_rules! sarr {
 #[test]
 fn heap_test_swap_front_back_remove() {
   fn run(back: bool) {
-    let mut tester = GenericArrayDeque::<String, U15>::new();
+    let mut tester = ArrayDeque::<String, U15>::new();
     let usable_cap = tester.capacity();
     let final_len = usable_cap / 2;
 
     for len in 0..final_len {
-      let expected: GenericArrayDeque<_, U15> = if back {
-        GenericArrayDeque::try_from_exact_iter((0..len).map(s)).unwrap()
+      let expected: ArrayDeque<_, U15> = if back {
+        ArrayDeque::try_from_exact_iter((0..len).map(s)).unwrap()
       } else {
-        GenericArrayDeque::try_from_exact_iter((0..len).rev().map(s)).unwrap()
+        ArrayDeque::try_from_exact_iter((0..len).rev().map(s)).unwrap()
       };
       for head_pos in 0..usable_cap {
         tester.clear();
@@ -61,11 +61,11 @@ fn heap_test_swap_front_back_remove() {
 
 #[test]
 fn heap_test_insert() {
-  let mut tester = GenericArrayDeque::<String, U15>::new();
+  let mut tester = ArrayDeque::<String, U15>::new();
   let cap = tester.capacity();
   let minlen = if cfg!(miri) { cap - 1 } else { 1 };
   for len in minlen..cap {
-    let expected = GenericArrayDeque::<String, U15>::try_from_iter((0..).take(len).map(s)).unwrap();
+    let expected = ArrayDeque::<String, U15>::try_from_iter((0..).take(len).map(s)).unwrap();
     for head_pos in 0..cap {
       for to_insert in 0..len {
         tester.clear();
@@ -87,7 +87,7 @@ fn heap_test_insert() {
 
 #[test]
 fn heap_test_get_mut() {
-  let mut tester = GenericArrayDeque::<String, U5>::new();
+  let mut tester = ArrayDeque::<String, U5>::new();
   tester.push_back(s(1));
   tester.push_back(s(2));
   tester.push_back(s(3));
@@ -113,7 +113,7 @@ fn heap_test_get_mut() {
 
 #[test]
 fn heap_test_swap() {
-  let mut tester = GenericArrayDeque::<String, U5>::new();
+  let mut tester = ArrayDeque::<String, U5>::new();
   tester.push_back(s(1));
   tester.push_back(s(2));
   tester.push_back(s(3));
@@ -134,8 +134,7 @@ fn heap_test_swap() {
 
 #[test]
 fn heap_test_rotate_left_right() {
-  let mut tester: GenericArrayDeque<_, U10> =
-    GenericArrayDeque::try_from_iter((1..=10).map(s)).unwrap();
+  let mut tester: ArrayDeque<_, U10> = ArrayDeque::try_from_iter((1..=10).map(s)).unwrap();
   assert_eq!(tester.len(), 10);
 
   tester.rotate_left(0);
@@ -162,7 +161,7 @@ fn heap_test_rotate_left_right() {
 
 #[test]
 fn heap_test_drain() {
-  let mut tester: GenericArrayDeque<String, U7> = GenericArrayDeque::new();
+  let mut tester: ArrayDeque<String, U7> = ArrayDeque::new();
 
   let cap = tester.capacity();
   for len in 0..=cap {
@@ -176,19 +175,18 @@ fn heap_test_drain() {
             tester.push_back(s(i));
           }
 
-          let drained: GenericArrayDeque<_, U7> =
-            GenericArrayDeque::try_from_iter(tester.drain(drain_start..drain_end)).unwrap();
-          let drained_expected: GenericArrayDeque<_, U7> =
-            GenericArrayDeque::try_from_iter((drain_start..drain_end).map(s)).unwrap();
+          let drained: ArrayDeque<_, U7> =
+            ArrayDeque::try_from_iter(tester.drain(drain_start..drain_end)).unwrap();
+          let drained_expected: ArrayDeque<_, U7> =
+            ArrayDeque::try_from_iter((drain_start..drain_end).map(s)).unwrap();
           assert_eq!(drained, drained_expected);
 
           assert_eq!(tester.capacity(), cap);
           assert!(tester.head <= tester.capacity());
           assert!(tester.len <= tester.capacity());
 
-          let expected: GenericArrayDeque<_, U14> =
-            GenericArrayDeque::try_from_iter((0..drain_start).chain(drain_end..len).map(s))
-              .unwrap();
+          let expected: ArrayDeque<_, U14> =
+            ArrayDeque::try_from_iter((0..drain_start).chain(drain_end..len).map(s)).unwrap();
           assert_eq!(expected, tester);
         }
       }
@@ -198,16 +196,15 @@ fn heap_test_drain() {
 
 #[test]
 fn heap_test_split_off() {
-  let mut tester = GenericArrayDeque::<String, U15>::new();
+  let mut tester = ArrayDeque::<String, U15>::new();
   let cap = tester.capacity();
 
   let minlen = if cfg!(miri) { cap - 1 } else { 0 };
   for len in minlen..cap {
     for at in 0..=len {
-      let expected_self =
-        GenericArrayDeque::<String, U15>::try_from_iter((0..).take(at).map(s)).unwrap();
+      let expected_self = ArrayDeque::<String, U15>::try_from_iter((0..).take(at).map(s)).unwrap();
       let expected_other =
-        GenericArrayDeque::<String, U15>::try_from_iter((at..).take(len - at).map(s)).unwrap();
+        ArrayDeque::<String, U15>::try_from_iter((at..).take(len - at).map(s)).unwrap();
 
       for head_pos in 0..cap {
         tester.clear();
@@ -231,21 +228,20 @@ fn heap_test_split_off() {
 #[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn heap_test_from_vec() {
-  let deque = GenericArrayDeque::<String, U4>::try_from_vec(
-    vec!["1", "2", "3", "4"].into_iter().map(s).collect(),
-  )
-  .unwrap();
+  let deque =
+    ArrayDeque::<String, U4>::try_from_vec(vec!["1", "2", "3", "4"].into_iter().map(s).collect())
+      .unwrap();
   assert_eq!(deque.len(), 4);
 
   let result =
-    GenericArrayDeque::<String, U2>::try_from_vec(vec!["1", "2", "3"].into_iter().map(s).collect());
+    ArrayDeque::<String, U2>::try_from_vec(vec!["1", "2", "3"].into_iter().map(s).collect());
   assert!(result.is_err());
 }
 
 #[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn heap_test_extend_basic() {
-  let mut deque = GenericArrayDeque::<String, U4>::new();
+  let mut deque = ArrayDeque::<String, U4>::new();
   deque.try_extend_from_exact_iter(["1".to_string(), "2".to_string()]);
   assert_eq!(deque.len(), 2);
   assert_eq!(deque[0], "1");
@@ -257,7 +253,7 @@ fn heap_test_extend_basic() {
 // and the clone were dropped (UB under Miri).
 #[test]
 fn heap_test_clone_deep_copies_heap_owning_elements() {
-  let mut original = GenericArrayDeque::<String, U4>::new();
+  let mut original = ArrayDeque::<String, U4>::new();
   original.push_back(s("hello"));
   original.push_front(s("world"));
 
@@ -278,12 +274,12 @@ fn heap_test_clone_deep_copies_heap_owning_elements() {
 // the broken `clone`, so it had the same double-free behavior.
 #[test]
 fn heap_test_clone_from_deep_copies_heap_owning_elements() {
-  let mut dst = GenericArrayDeque::<String, U4>::new();
+  let mut dst = ArrayDeque::<String, U4>::new();
   dst.push_back(s("stale-a"));
   dst.push_back(s("stale-b"));
   dst.push_back(s("stale-c"));
 
-  let mut src = GenericArrayDeque::<String, U4>::new();
+  let mut src = ArrayDeque::<String, U4>::new();
   src.push_back(s("fresh"));
 
   dst.clone_from(&src);
@@ -293,7 +289,7 @@ fn heap_test_clone_from_deep_copies_heap_owning_elements() {
 
 #[test]
 fn heap_make_contiguous_big_head() {
-  let mut tester = GenericArrayDeque::<String, U15>::new();
+  let mut tester = ArrayDeque::<String, U15>::new();
   for i in 0..3 {
     tester.push_back(s(i));
   }
@@ -309,7 +305,7 @@ fn heap_make_contiguous_big_head() {
 
 #[test]
 fn heap_make_contiguous_big_tail() {
-  let mut tester = GenericArrayDeque::<String, U15>::new();
+  let mut tester = ArrayDeque::<String, U15>::new();
   for i in 0..8 {
     tester.push_back(s(i));
   }
@@ -323,7 +319,7 @@ fn heap_make_contiguous_big_tail() {
 
 #[test]
 fn heap_make_contiguous_small_free() {
-  let mut tester = GenericArrayDeque::<String, U16>::new();
+  let mut tester = ArrayDeque::<String, U16>::new();
   for ch in b'A'..b'I' {
     tester.push_back(String::from(ch as char));
   }
@@ -358,7 +354,7 @@ fn heap_make_contiguous_small_free() {
 
 #[test]
 fn heap_make_contiguous_head_to_end() {
-  let mut tester = GenericArrayDeque::<String, U16>::new();
+  let mut tester = ArrayDeque::<String, U16>::new();
   for ch in b'A'..b'L' {
     tester.push_back(String::from(ch as char));
   }
@@ -394,7 +390,7 @@ fn heap_make_contiguous_head_to_end() {
 #[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn heap_make_contiguous_head_to_end_2() {
-  let mut dq = GenericArrayDeque::<String, U6>::try_from_iter((0..6).map(s)).unwrap();
+  let mut dq = ArrayDeque::<String, U6>::try_from_iter((0..6).map(s)).unwrap();
   dq.pop_front();
   dq.pop_front();
   dq.push_back(s(6));

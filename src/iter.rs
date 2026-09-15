@@ -1,11 +1,11 @@
 use core::{fmt, iter::FusedIterator, mem, slice};
 
-/// An iterator over the elements of a [`GenericArrayDeque`](crate::GenericArrayDeque).
+/// An iterator over the elements of a [`ArrayDeque`](crate::ArrayDeque).
 ///
-/// This `struct` is created by the [`iter`] method on [`super::GenericArrayDeque`]. See its
+/// This `struct` is created by the [`iter`] method on [`super::ArrayDeque`]. See its
 /// documentation for more.
 ///
-/// [`iter`]: super::GenericArrayDeque::iter
+/// [`iter`]: super::ArrayDeque::iter
 #[derive(Clone)]
 pub struct Iter<'a, T> {
   i1: slice::Iter<'a, T>,
@@ -28,9 +28,9 @@ impl<'a, T> Iter<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U4};
   ///
-  /// let mut deque = GenericArrayDeque::<u32, U4>::new();
+  /// let mut deque = ArrayDeque::<u32, U4>::new();
   /// for value in 0..3 {
   ///     assert!(deque.push_back(value).is_none());
   /// }
@@ -55,7 +55,6 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
   }
 }
 
-#[rustversion::since(1.70)]
 impl<T> Default for Iter<'_, T> {
   /// Creates an empty iterator.
   ///
@@ -148,11 +147,11 @@ impl<T> FusedIterator for Iter<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-  use crate::{typenum::U4, GenericArrayDeque};
+  use crate::{ArrayDeque, typenum::U4};
 
   #[test]
   fn as_slices_reflect_wrapping_layout() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }
@@ -168,7 +167,7 @@ mod tests {
 
   #[test]
   fn next_and_next_back_cover_all_elements() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }
@@ -186,7 +185,7 @@ mod tests {
   #[allow(clippy::unnecessary_fold)]
   #[test]
   fn fold_and_rfold_process_all_items() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }
@@ -199,7 +198,7 @@ mod tests {
 
   #[test]
   fn size_hint_tracks_remaining_items() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }
@@ -213,14 +212,13 @@ mod tests {
 
   #[test]
   fn last_returns_final_element() {
-    let mut deque = GenericArrayDeque::<_, U4>::new();
+    let mut deque = ArrayDeque::<_, U4>::new();
     for value in 0..4 {
       assert!(deque.push_back(value).is_none());
     }
     assert_eq!(deque.iter().last(), Some(&3));
   }
 
-  #[rustversion::since(1.70)]
   #[test]
   fn default_is_empty() {
     use super::Iter;

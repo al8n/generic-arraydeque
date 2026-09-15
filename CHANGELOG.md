@@ -1,5 +1,10 @@
 # UNRELEASED
 
+# 0.3.0 (Sep 15th, 2026)
+
+- Bumpup the MSRV to 1.85
+- Rename `GenericArrayDeque` and `ConstGenericArrayDeque` to `ArrayDeque` and `ConstArrayDeque`
+
 # 0.2.0 (Apr 23rd, 2026)
 
 BUG FIXES

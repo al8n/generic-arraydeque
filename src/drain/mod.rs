@@ -7,9 +7,9 @@ use core::{
   ptr::{self, NonNull},
 };
 
-use super::{ArrayLength, GenericArrayDeque};
+use super::{ArrayDeque, ArrayLength};
 
-impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
+impl<T, N: ArrayLength> ArrayDeque<T, N> {
   /// Removes the specified range from the deque in bulk, returning all
   /// removed elements as an iterator. If the iterator is dropped before
   /// being fully consumed, it drops the remaining removed elements.
@@ -94,7 +94,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
 pub struct Drain<'a, T, N: ArrayLength> {
   // We can't just use a &mut VecDeque<T, N>, as that would make Drain invariant over T
   // and we want it to be covariant instead
-  deque: NonNull<GenericArrayDeque<T, N>>,
+  deque: NonNull<ArrayDeque<T, N>>,
   // drain_start is stored in deque.len
   drain_len: usize,
   // index into the logical array, not the physical one (always lies in [0..deque.len))
@@ -108,7 +108,7 @@ pub struct Drain<'a, T, N: ArrayLength> {
 
 impl<'a, T, N: ArrayLength> Drain<'a, T, N> {
   pub(super) unsafe fn new(
-    deque: &'a mut GenericArrayDeque<T, N>,
+    deque: &'a mut ArrayDeque<T, N>,
     drain_start: usize,
     drain_len: usize,
   ) -> Self {
@@ -268,7 +268,7 @@ impl<T, N: ArrayLength> Drop for Drain<'_, T, N> {
           // See `tests/codegen-llvm/vecdeque-drain.rs` for a test.
           #[cold]
           fn join_head_and_tail_wrapping<T, N: ArrayLength>(
-            source_deque: &mut GenericArrayDeque<T, N>,
+            source_deque: &mut ArrayDeque<T, N>,
             drain_len: usize,
             head_len: usize,
             tail_len: usize,
@@ -354,90 +354,13 @@ trait PtrLen {
   unsafe fn len(self) -> usize;
 }
 
-#[rustversion::since(1.79)]
 impl<T> PtrLen for *mut [T] {
   #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   unsafe fn len(self) -> usize {
     <*mut [T]>::len(self)
   }
 }
 
-#[rustversion::before(1.79)]
-impl<T> PtrLen for *mut [T] {
-  #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn len(self) -> usize {
-    (&*self).len()
-  }
-}
-
 #[cfg(test)]
-mod tests {
-  use crate::{typenum::U8, GenericArrayDeque};
-  use core::sync::atomic::{AtomicUsize, Ordering};
-
-  static DROP_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-  #[derive(Debug)]
-  struct DropSpy;
-
-  impl Drop for DropSpy {
-    fn drop(&mut self) {
-      DROP_COUNTER.fetch_add(1, Ordering::SeqCst);
-    }
-  }
-
-  #[test]
-  fn drain_removes_requested_range() {
-    let mut deque = GenericArrayDeque::<_, U8>::new();
-    for value in 0..6 {
-      assert!(deque.push_back(value).is_none());
-    }
-
-    let mut drained = [0; 2];
-    let mut idx = 0;
-    for value in deque.drain(2..4) {
-      drained[idx] = value;
-      idx += 1;
-    }
-    assert_eq!(&drained[..idx], &[2, 3]);
-    assert_eq!(deque.len(), 4);
-    assert_eq!(deque[0], 0);
-    assert_eq!(deque[1], 1);
-    assert_eq!(deque[2], 4);
-    assert_eq!(deque[3], 5);
-  }
-
-  #[test]
-  fn drain_iterator_supports_double_ended_iteration() {
-    let mut deque = GenericArrayDeque::<_, U8>::new();
-    for value in 0..5 {
-      assert!(deque.push_back(value).is_none());
-    }
-
-    let mut drain = deque.drain(1..4);
-    assert_eq!(drain.next_back(), Some(3));
-    assert_eq!(drain.next(), Some(1));
-    assert_eq!(drain.next(), Some(2));
-    assert_eq!(drain.next(), None);
-    drop(drain);
-    assert_eq!(deque.len(), 2);
-    assert_eq!(deque[0], 0);
-    assert_eq!(deque[1], 4);
-  }
-
-  #[test]
-  fn dropping_drain_drops_remaining_elements() {
-    DROP_COUNTER.store(0, Ordering::SeqCst);
-    {
-      let mut deque = GenericArrayDeque::<_, U8>::new();
-      for _ in 0..4 {
-        assert!(deque.push_back(DropSpy).is_none());
-      }
-      let _ = deque.drain(1..3);
-      assert_eq!(deque.len(), 2);
-    }
-    assert_eq!(DROP_COUNTER.load(Ordering::SeqCst), 4);
-  }
-}
+mod tests;

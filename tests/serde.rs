@@ -1,11 +1,11 @@
 #![cfg(feature = "serde")]
 
-use generic_arraydeque::{typenum::U4, GenericArrayDeque};
-use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
+use generic_arraydeque::{ArrayDeque, typenum::U4};
+use serde_test::{Token, assert_de_tokens, assert_de_tokens_error, assert_tokens};
 
 #[test]
 fn serialize_roundtrip() {
-  let mut deque = GenericArrayDeque::<u32, U4>::new();
+  let mut deque = ArrayDeque::<u32, U4>::new();
   deque.push_back(10);
   deque.push_back(20);
   deque.push_back(30);
@@ -22,7 +22,7 @@ fn serialize_roundtrip() {
   );
 
   assert_de_tokens(
-    &GenericArrayDeque::<u32, U4>::try_from_array([10, 20, 30]).unwrap(),
+    &ArrayDeque::<u32, U4>::try_from_array([10, 20, 30]).unwrap(),
     &[
       Token::Seq { len: Some(3) },
       Token::U32(10),
@@ -35,7 +35,7 @@ fn serialize_roundtrip() {
 
 #[test]
 fn deserialize_overflow() {
-  assert_de_tokens_error::<GenericArrayDeque<u8, U4>>(
+  assert_de_tokens_error::<ArrayDeque<u8, U4>>(
     &[
       Token::Seq { len: Some(5) },
       Token::U8(1),
@@ -53,7 +53,7 @@ fn deserialize_overflow() {
 fn deserialize_rejects_non_sequence() {
   // Hits `Visitor::expecting`, which is called to format the error
   // message when the incoming token is not a sequence.
-  assert_de_tokens_error::<GenericArrayDeque<u8, U4>>(
+  assert_de_tokens_error::<ArrayDeque<u8, U4>>(
     &[Token::I32(42)],
     "invalid type: integer `42`, expected a sequence",
   );
