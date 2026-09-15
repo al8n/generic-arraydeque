@@ -949,7 +949,7 @@ fn test_vec_from_vecdeque() {
     let cap = (2i32.pow(cap_pwr) - 1) as usize;
 
     // In these cases there is enough free space to solve it with copies
-    for len in 0..((cap + 1) / 2) {
+    for len in 0..cap.div_ceil(2) {
       // Test contiguous cases
       for offset in 0..(cap - len) {
         if cfg!(miri) {
@@ -982,7 +982,7 @@ fn test_vec_from_vecdeque() {
     // the ring will use swapping when:
     // (cap + 1 - offset) > (cap + 1 - len) && (len - (cap + 1 - offset)) > (cap + 1 - len))
     //  right block size  >   free space    &&      left block size       >    free space
-    for len in ((cap + 1) / 2)..cap {
+    for len in cap.div_ceil(2)..cap {
       // Test contiguous cases
       for offset in 0..(cap - len) {
         if cfg!(miri) {
@@ -1038,7 +1038,6 @@ fn test_clone_from() {
   }
 }
 
-#[rustversion::since(1.73)]
 #[cfg(feature = "std")]
 #[test]
 fn test_vec_deque_truncate_drop() {
@@ -1523,7 +1522,6 @@ fn extract_if_drop_panic_leak() {
   assert_eq!(d7.dropped(), 1);
 }
 
-#[rustversion::since(1.73)]
 #[cfg(all(feature = "std", feature = "unstable"))]
 #[test]
 #[cfg_attr(not(panic = "unwind"), ignore = "test requires unwinding support")]

@@ -4,7 +4,7 @@ use std::io::{self, BufRead, IoSlice, Read, Write};
 use super::{ArrayLength, GenericArrayDeque};
 
 impl<N: ArrayLength> GenericArrayDeque<u8, N> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn extend_bytes(&mut self, buf: &[u8]) {
     let written = unsafe {
       self.write_iter_wrapping(
@@ -192,65 +192,19 @@ trait SplitAtMut {
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)>;
 }
 
-#[rustversion::since(1.80)]
 impl<T> SplitAt for [T] {
   #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
     <[T]>::split_at_checked(self, mid)
   }
 }
 
-#[rustversion::before(1.80)]
-impl<T> SplitAt for [T] {
-  #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn split_at_checked(&self, mid: usize) -> Option<(&Self, &Self)> {
-    use core::slice::from_raw_parts;
-
-    let len = self.len();
-    if mid <= len {
-      // SAFETY: `0 <= mid <= self.len()`
-      Some(unsafe {
-        (
-          from_raw_parts(self.as_ptr(), mid),
-          from_raw_parts(self.as_ptr().add(mid), len - mid),
-        )
-      })
-    } else {
-      None
-    }
-  }
-}
-
-#[rustversion::since(1.80)]
 impl<T> SplitAtMut for [T] {
   #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
     <[T]>::split_at_mut_checked(self, mid)
-  }
-}
-
-#[rustversion::before(1.80)]
-impl<T> SplitAtMut for [T] {
-  #[allow(unstable_name_collisions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
-    use core::slice::from_raw_parts_mut;
-    let len = self.len();
-    if mid <= len {
-      let len = self.len();
-      // SAFETY: `0 <= mid <= self.len()`, so the two slices do not overlap.
-      Some(unsafe {
-        (
-          from_raw_parts_mut(self.as_mut_ptr(), mid),
-          from_raw_parts_mut(self.as_mut_ptr().add(mid), len - mid),
-        )
-      })
-    } else {
-      None
-    }
   }
 }
 

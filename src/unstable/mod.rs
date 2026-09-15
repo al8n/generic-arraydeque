@@ -24,7 +24,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// assert_eq!(deque.front(), Some(&1));
   /// assert_eq!(deque.pop_front_if(pred), None);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn pop_front_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T> {
     let first = self.front_mut()?;
     if predicate(first) {
@@ -53,7 +53,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// assert_eq!(deque.back(), Some(&3));
   /// assert_eq!(deque.pop_back_if(pred), None);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn pop_back_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T> {
     let first = self.back_mut()?;
     if predicate(first) {
@@ -79,9 +79,8 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// let _ = deque.push_back_mut(20).unwrap();
   /// assert!(deque.push_back_mut(30).is_err());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn push_back_mut(&mut self, value: T) -> Result<&mut T, T> {
+  #[inline(always)]
+  pub const fn push_back_mut(&mut self, value: T) -> Result<&mut T, T> {
     if self.is_full() {
       Err(value)
     } else {
@@ -105,9 +104,8 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// let _ = deque.push_front_mut(20).unwrap();
   /// assert!(deque.push_front_mut(30).is_err());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn push_front_mut(&mut self, value: T) -> Result<&mut T, T> {
+  #[inline(always)]
+  pub const fn push_front_mut(&mut self, value: T) -> Result<&mut T, T> {
     if self.is_full() {
       Err(value)
     } else {
@@ -199,8 +197,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![1, 12, 2, 3]);
   /// ```
   #[must_use = "if you don't need a reference to the value, use `GenericArrayDeque::insert` instead"]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
+  pub const fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
     if index > self.len() || self.is_full() {
       return Err(value);
     }

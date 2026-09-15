@@ -202,7 +202,7 @@ impl<T, N> Default for GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -356,7 +356,7 @@ impl<'a, T, N: ArrayLength> IntoIterator for &'a mut GenericArrayDeque<T, N> {
 impl<T, N: ArrayLength, const SIZE: usize> TryFrom<[T; SIZE]> for GenericArrayDeque<T, N> {
   type Error = [T; SIZE];
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_from(arr: [T; SIZE]) -> Result<Self, Self::Error> {
     Self::try_from_array(arr)
   }
@@ -452,7 +452,7 @@ const _: () = {
     /// let result = GenericArrayDeque::<i32, U2>::try_from(vec![1, 2, 3]);
     /// assert!(result.is_err());
     /// ```
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn try_from(vec: Vec<T>) -> Result<Self, Self::Error> {
       Self::try_from_vec(vec)
     }
@@ -472,7 +472,7 @@ const _: () = {
     /// let result = GenericArrayDeque::<i32, U2>::try_from(VecDeque::from(vec![1, 2, 3]));
     /// assert!(result.is_err());
     /// ```
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn try_from(vec_deq: VecDeque<T>) -> Result<Self, Self::Error> {
       if vec_deq.len() > N::USIZE {
         return Err(vec_deq);
@@ -505,7 +505,7 @@ const _: () = {
     /// let vec: Vec<i32> = Vec::from(deque);
     /// assert_eq!(vec, vec![10, 20, 30]);
     /// ```
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(deq: GenericArrayDeque<T, N>) -> Self {
       let mut vec = Vec::with_capacity(deq.len());
       for item in deq.into_iter() {
@@ -528,7 +528,7 @@ const _: () = {
     /// let vec_deque: VecDeque<i32> = VecDeque::from(deque);
     /// assert_eq!(vec_deque, VecDeque::from(vec![10, 20, 30]));
     /// ```
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(deq: GenericArrayDeque<T, N>) -> Self {
       let mut vec = VecDeque::with_capacity(deq.len());
       for item in deq.into_iter() {
@@ -552,7 +552,7 @@ where
   ///
   /// let deque: GenericArrayDeque<u32, U8> = GenericArrayDeque::new();
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       array: GenericArray::uninit(),
@@ -583,8 +583,7 @@ where
   /// # }
   /// ```
   #[inline(always)]
-  #[rustversion::attr(since(1.81), const)]
-  pub fn from_array<const U: usize>(array: [T; U]) -> Self
+  pub const fn from_array<const U: usize>(array: [T; U]) -> Self
   where
     typenum::Const<U>: IntoArrayLength<ArrayLength = N>,
   {
@@ -626,9 +625,8 @@ where
   /// assert_eq!(deque[1].as_str(), "two");
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn try_from_array<const SIZE: usize>(arr: [T; SIZE]) -> Result<Self, [T; SIZE]> {
+  #[inline(always)]
+  pub const fn try_from_array<const SIZE: usize>(arr: [T; SIZE]) -> Result<Self, [T; SIZE]> {
     if SIZE > N::USIZE {
       return Err(arr);
     }
@@ -846,7 +844,7 @@ where
   /// let deque: GenericArrayDeque<u32, U8> = GenericArrayDeque::new();
   /// assert_eq!(deque.capacity(), 8);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn capacity(&self) -> usize {
     N::USIZE
   }
@@ -863,7 +861,7 @@ where
   /// deque.push_back(1);
   /// assert_eq!(deque.len(), 1);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn len(&self) -> usize {
     self.len
   }
@@ -880,7 +878,7 @@ where
   /// assert!(deque.push_back(10).is_none());
   /// assert_eq!(deque.remaining_capacity(), 3);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn remaining_capacity(&self) -> usize {
     debug_assert!(self.len <= self.capacity());
     self.capacity() - self.len
@@ -898,7 +896,7 @@ where
   /// deque.push_front(1);
   /// assert!(!deque.is_empty());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn is_empty(&self) -> bool {
     self.len == 0
   }
@@ -917,7 +915,7 @@ where
   /// assert!(deque.push_back(20).is_none());
   /// assert!(deque.is_full());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn is_full(&self) -> bool {
     self.len == self.capacity()
   }
@@ -1067,8 +1065,7 @@ where
   /// ```
   #[inline]
   #[must_use = "use `.truncate()` if you don't need the other half"]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn split_off(&mut self, at: usize) -> Self {
+  pub const fn split_off(&mut self, at: usize) -> Self {
     let len = self.len;
     assert!(at <= len, "`at` out of bounds");
 
@@ -1132,8 +1129,7 @@ where
   /// assert_eq!(buf2, []);
   /// ```
   #[inline]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn append(&mut self, other: &mut Self) -> bool {
+  pub const fn append(&mut self, other: &mut Self) -> bool {
     if self.len + other.len > self.capacity() {
       return false;
     }
@@ -1198,7 +1194,7 @@ where
   /// assert_eq!(&expected[..front.len()], front);
   /// assert_eq!(&expected[front.len()..], back);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_slices(&self) -> (&[T], &[T]) {
     let (a_range, b_range) = self.slice_full_ranges();
     // SAFETY: `slice_full_ranges` always returns valid ranges into
@@ -1246,9 +1242,8 @@ where
   /// let v: Vec<_> = deque.into_iter().collect();
   /// assert_eq!(v, [42, 10, 24, 1]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
+  #[inline(always)]
+  pub const fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
     let (a_range, b_range) = self.slice_full_ranges();
     let base = self.ptr_mut();
     unsafe {
@@ -1279,7 +1274,7 @@ where
   /// d.push_back(2);
   /// assert_eq!(d.front(), Some(&1));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn front(&self) -> Option<&T> {
     self.get(0)
   }
@@ -1303,9 +1298,8 @@ where
   /// }
   /// assert_eq!(d.front(), Some(&9));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.84), const)]
-  pub fn front_mut(&mut self) -> Option<&mut T> {
+  #[inline(always)]
+  pub const fn front_mut(&mut self) -> Option<&mut T> {
     self.get_mut(0)
   }
 
@@ -1324,7 +1318,7 @@ where
   /// d.push_back(2);
   /// assert_eq!(d.back(), Some(&2));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn back(&self) -> Option<&T> {
     self.get(self.len.wrapping_sub(1))
   }
@@ -1348,9 +1342,8 @@ where
   /// }
   /// assert_eq!(d.back(), Some(&9));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.84), const)]
-  pub fn back_mut(&mut self) -> Option<&mut T> {
+  #[inline(always)]
+  pub const fn back_mut(&mut self) -> Option<&mut T> {
     self.get_mut(self.len.wrapping_sub(1))
   }
 
@@ -1369,7 +1362,7 @@ where
   /// assert_eq!(*deque.get(0).unwrap(), 10);
   /// assert_eq!(*deque.get(1).unwrap(), 20);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn get(&self, index: usize) -> Option<&T> {
     if index < self.len {
       let idx = self.to_physical_idx(index);
@@ -1395,9 +1388,8 @@ where
   /// *deque.get_mut(0).unwrap() += 5;
   /// assert_eq!(*deque.get(0).unwrap(), 15);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.84), const)]
-  pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+  #[inline(always)]
+  pub const fn get_mut(&mut self, index: usize) -> Option<&mut T> {
     if index < self.len {
       let idx = self.to_physical_idx(index);
       // SAFETY: index is checked to be in-bounds
@@ -1421,9 +1413,8 @@ where
   /// assert!(deque.push_back(20).is_none());
   /// assert!(deque.push_back(30).is_some());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn push_back(&mut self, value: T) -> Option<T> {
+  #[inline(always)]
+  pub const fn push_back(&mut self, value: T) -> Option<T> {
     if self.is_full() {
       Some(value)
     } else {
@@ -1448,9 +1439,8 @@ where
   /// assert_eq!(d.pop_front(), Some(2));
   /// assert_eq!(d.pop_front(), None);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn pop_front(&mut self) -> Option<T> {
+  #[inline(always)]
+  pub const fn pop_front(&mut self) -> Option<T> {
     if self.is_empty() {
       None
     } else {
@@ -1478,9 +1468,8 @@ where
   /// buf.push_back(3);
   /// assert_eq!(buf.pop_back(), Some(3));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn pop_back(&mut self) -> Option<T> {
+  #[inline(always)]
+  pub const fn pop_back(&mut self) -> Option<T> {
     if self.is_empty() {
       None
     } else {
@@ -1507,9 +1496,8 @@ where
   /// assert!(deque.push_front(20).is_none());
   /// assert!(deque.push_front(30).is_some());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn push_front(&mut self, value: T) -> Option<T> {
+  #[inline(always)]
+  pub const fn push_front(&mut self, value: T) -> Option<T> {
     if self.is_full() {
       Some(value)
     } else {
@@ -1553,9 +1541,8 @@ where
   /// }
   /// assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn rotate_left(&mut self, n: usize) {
+  #[inline(always)]
+  pub const fn rotate_left(&mut self, n: usize) {
     assert!(n <= self.len());
     let k = self.len - n;
     if n <= k {
@@ -1600,9 +1587,8 @@ where
   /// }
   /// assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn rotate_right(&mut self, n: usize) {
+  #[inline(always)]
+  pub const fn rotate_right(&mut self, n: usize) {
     assert!(n <= self.len());
     let k = self.len - n;
     if n <= k {
@@ -1864,7 +1850,7 @@ where
   /// deque.clear();
   /// assert!(deque.is_empty());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn clear(&mut self) {
     self.truncate(0);
     // Not strictly necessary, but leaves things in a more consistent/predictable state.
@@ -2146,9 +2132,8 @@ where
   /// buf.swap(0, 2);
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![5, 4, 3]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn swap(&mut self, i: usize, j: usize) {
+  #[inline(always)]
+  pub const fn swap(&mut self, i: usize, j: usize) {
     assert!(i < self.len());
     assert!(j < self.len());
     let ri = self.to_physical_idx(i);
@@ -2181,9 +2166,8 @@ where
   /// assert_eq!(buf.swap_remove_front(2), Some(3));
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![2, 1]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn swap_remove_front(&mut self, index: usize) -> Option<T> {
+  #[inline(always)]
+  pub const fn swap_remove_front(&mut self, index: usize) -> Option<T> {
     let length = self.len;
     if index < length && index != 0 {
       self.swap(index, 0);
@@ -2215,9 +2199,8 @@ where
   /// assert_eq!(buf.swap_remove_back(0), Some(1));
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec![3, 2]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn swap_remove_back(&mut self, index: usize) -> Option<T> {
+  #[inline(always)]
+  pub const fn swap_remove_back(&mut self, index: usize) -> Option<T> {
     let length = self.len;
     if length > 0 && index < length - 1 {
       self.swap(index, length - 1);
@@ -2253,9 +2236,8 @@ where
   /// # #[cfg(feature = "std")]
   /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec!['a', 'd', 'b', 'c', 'e']);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.85), const)]
-  pub fn insert(&mut self, index: usize, value: T) -> Option<T> {
+  #[inline(always)]
+  pub const fn insert(&mut self, index: usize, value: T) -> Option<T> {
     if index > self.len() || self.is_full() {
       return Some(value);
     }
@@ -2283,9 +2265,8 @@ where
   /// assert_eq!(buf.remove(1), Some('b'));
   /// assert_eq!(buf.into_iter().collect::<Vec<_>>(), vec!['a', 'c']);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[rustversion::attr(since(1.83), const)]
-  pub fn remove(&mut self, index: usize) -> Option<T> {
+  #[inline(always)]
+  pub const fn remove(&mut self, index: usize) -> Option<T> {
     if self.len <= index {
       return None;
     }
@@ -2534,8 +2515,7 @@ where
 
   /// Marginally more convenient
   #[inline]
-  #[rustversion::attr(since(1.83), const)]
-  fn ptr_mut(&mut self) -> *mut MaybeUninit<T> {
+  const fn ptr_mut(&mut self) -> *mut MaybeUninit<T> {
     self.array.as_mut_slice().as_mut_ptr()
   }
 
@@ -2650,8 +2630,7 @@ where
   /// ## Safety
   /// - `off` must be a valid index into the buffer containing an initialized value
   #[inline]
-  #[rustversion::attr(since(1.75), const)]
-  unsafe fn buffer_read(&self, off: usize) -> T {
+  const unsafe fn buffer_read(&self, off: usize) -> T {
     unsafe { (&*self.ptr().add(off)).assume_init_read() }
   }
 
@@ -2665,8 +2644,7 @@ where
   /// Returns a slice pointer into the buffer.
   /// `range` must lie inside `0..self.capacity()`.
   #[inline]
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn buffer_range_mut(&mut self, range: Range<usize>) -> *mut [T] {
+  const unsafe fn buffer_range_mut(&mut self, range: Range<usize>) -> *mut [T] {
     unsafe {
       ptr::slice_from_raw_parts_mut(
         self.ptr_mut().add(range.start) as _,
@@ -2680,8 +2658,7 @@ where
   ///
   /// May only be called if `off < self.capacity()`.
   #[inline]
-  #[rustversion::attr(since(1.85), const)]
-  unsafe fn buffer_write(&mut self, off: usize, value: T) -> &mut T {
+  const unsafe fn buffer_write(&mut self, off: usize, value: T) -> &mut T {
     unsafe {
       let ptr = &mut *self.ptr_mut().add(off);
       ptr.write(value);
@@ -2689,8 +2666,7 @@ where
     }
   }
 
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn rotate_left_inner(&mut self, mid: usize) {
+  const unsafe fn rotate_left_inner(&mut self, mid: usize) {
     debug_assert!(mid * 2 <= self.len());
     unsafe {
       self.wrap_copy(self.head, self.to_physical_idx(self.len), mid);
@@ -2698,8 +2674,7 @@ where
     self.head = self.to_physical_idx(mid);
   }
 
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn rotate_right_inner(&mut self, k: usize) {
+  const unsafe fn rotate_right_inner(&mut self, k: usize) {
     debug_assert!(k * 2 <= self.len());
     self.head = self.wrap_sub(self.head, k);
     unsafe {
@@ -2709,8 +2684,7 @@ where
 
   /// Copies a contiguous block of memory len long from src to dst
   #[inline]
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn copy(&mut self, src: usize, dst: usize, len: usize) {
+  const unsafe fn copy(&mut self, src: usize, dst: usize, len: usize) {
     check_copy_bounds(dst, src, len, self.capacity());
 
     unsafe {
@@ -2724,8 +2698,7 @@ where
   /// Copies all values from `src` to `dst`, wrapping around if needed.
   /// Assumes capacity is sufficient.
   #[inline]
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn copy_slice(&mut self, dst: usize, src: &[T]) {
+  const unsafe fn copy_slice(&mut self, dst: usize, src: &[T]) {
     debug_assert!(src.len() <= self.capacity());
     let head_room = self.capacity() - dst;
     if src.len() <= head_room {
@@ -2743,8 +2716,7 @@ where
 
   /// Copies a contiguous block of memory len long from src to dst
   #[inline]
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn copy_nonoverlapping(&mut self, src: usize, dst: usize, len: usize) {
+  const unsafe fn copy_nonoverlapping(&mut self, src: usize, dst: usize, len: usize) {
     check_copy_bounds(dst, src, len, self.capacity());
     unsafe {
       let base_ptr = self.ptr_mut();
@@ -2757,8 +2729,7 @@ where
   /// Copies a potentially wrapping block of memory len long from src to dest.
   /// (abs(dst - src) + len) must be no larger than capacity() (There must be at
   /// most one continuous overlapping region between src and dest).
-  #[rustversion::attr(since(1.83), const)]
-  unsafe fn wrap_copy(&mut self, src: usize, dst: usize, len: usize) {
+  const unsafe fn wrap_copy(&mut self, src: usize, dst: usize, len: usize) {
     // debug_assert!(
     //   cmp::min(src.abs_diff(dst), self.capacity() - src.abs_diff(dst)) + len <= self.capacity(),
     //   "wrc dst={} src={} len={} cap={}",
@@ -3072,57 +3043,17 @@ fn slice_index_fail(start: usize, end: usize, len: usize) -> ! {
   )
 }
 
-#[rustversion::since(1.83)]
 const fn check_copy_bounds(dst: usize, src: usize, len: usize, cap: usize) {
   debug_assert!(dst + len <= cap,);
   debug_assert!(src + len <= cap,);
 }
 
-#[rustversion::before(1.83)]
-fn check_copy_bounds(dst: usize, src: usize, len: usize, cap: usize) {
-  debug_assert!(
-    dst + len <= cap,
-    "cpy dst={} src={} len={} cap={}",
-    dst,
-    src,
-    len,
-    cap
-  );
-  debug_assert!(
-    src + len <= cap,
-    "cpy dst={} src={} len={} cap={}",
-    dst,
-    src,
-    len,
-    cap
-  );
-}
-
-#[rustversion::since(1.82)]
-#[inline]
+#[inline(always)]
 fn repeat_n<T: Clone>(element: T, count: usize) -> impl Iterator<Item = T> {
   core::iter::repeat_n(element, count)
 }
 
-#[rustversion::before(1.82)]
-#[inline]
-fn repeat_n<T: Clone>(element: T, mut count: usize) -> impl Iterator<Item = T> {
-  core::iter::from_fn(move || {
-    if count == 0 {
-      None
-    } else {
-      count -= 1;
-      Some(element.clone())
-    }
-  })
-}
-
-#[rustversion::before(1.85)]
-#[cfg_attr(not(tarpaulin), inline(always))]
-const unsafe fn assert_unchecked(_: bool) {}
-
-#[rustversion::since(1.85)]
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 const unsafe fn assert_unchecked(cond: bool) {
   core::hint::assert_unchecked(cond);
 }

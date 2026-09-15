@@ -55,7 +55,6 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
   }
 }
 
-#[rustversion::since(1.70)]
 impl<T> Default for Iter<'_, T> {
   /// Creates an empty iterator.
   ///
@@ -220,7 +219,6 @@ mod tests {
     assert_eq!(deque.iter().last(), Some(&3));
   }
 
-  #[rustversion::since(1.70)]
   #[test]
   fn default_is_empty() {
     use super::Iter;
