@@ -46,6 +46,9 @@ rpath = false
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[workspace]
+exclude = ["integration-bin"]
+
 [lints]
 workspace = true
 
