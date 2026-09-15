@@ -4,9 +4,9 @@ use core::{
   ptr,
 };
 
-use super::{ArrayLength, GenericArrayDeque};
+use super::{ArrayDeque, ArrayLength};
 
-impl<T, N> GenericArrayDeque<T, N>
+impl<T, N> ArrayDeque<T, N>
 where
   N: ArrayLength,
 {
@@ -22,14 +22,14 @@ where
   /// or the iteration short-circuits, then the remaining elements will be retained.
   /// Use [`retain_mut`] with a negated predicate if you do not need the returned iterator.
   ///
-  /// [`retain_mut`]: GenericArrayDeque::retain_mut
+  /// [`retain_mut`]: ArrayDeque::retain_mut
   ///
   /// Using this method is equivalent to the following code:
   ///
   /// ```
-  /// # use generic_arraydeque::{GenericArrayDeque, typenum::U16};
+  /// # use generic_arraydeque::{ArrayDeque, typenum::U16};
   /// # let some_predicate = |x: &mut i32| { *x % 2 == 1 };
-  /// # let mut deq = GenericArrayDeque::<_, U16>::try_from_iter(0..10).unwrap();
+  /// # let mut deq = ArrayDeque::<_, U16>::try_from_iter(0..10).unwrap();
   /// # let mut deq2 = deq.clone();
   /// # let range = 1..5;
   /// let mut i = range.start;
@@ -66,13 +66,13 @@ where
   /// Splitting a deque into even and odd values, reusing the original deque:
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U16};
   ///
-  /// let mut numbers = GenericArrayDeque::<_, U16>::try_from_iter([
+  /// let mut numbers = ArrayDeque::<_, U16>::try_from_iter([
   ///     1, 2, 3, 4, 5, 6, 8, 9, 11, 13, 14, 15,
   /// ]).unwrap();
   ///
-  /// let mut evens = GenericArrayDeque::<_, U16>::new();
+  /// let mut evens = ArrayDeque::<_, U16>::new();
   /// numbers.extract_if(.., |x| *x % 2 == 0).for_each(|value| {
   ///     assert!(evens.push_back(value).is_none());
   /// });
@@ -80,29 +80,29 @@ where
   ///
   /// assert_eq!(
   ///     evens,
-  ///     GenericArrayDeque::<_, U16>::try_from_iter([2, 4, 6, 8, 14]).unwrap()
+  ///     ArrayDeque::<_, U16>::try_from_iter([2, 4, 6, 8, 14]).unwrap()
   /// );
   /// assert_eq!(
   ///     odds,
-  ///     GenericArrayDeque::<_, U16>::try_from_iter([1, 3, 5, 9, 11, 13, 15]).unwrap()
+  ///     ArrayDeque::<_, U16>::try_from_iter([1, 3, 5, 9, 11, 13, 15]).unwrap()
   /// );
   /// ```
   ///
   /// Using the range argument to only process a part of the deque:
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U16};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U16};
   ///
-  /// let mut items = GenericArrayDeque::<_, U16>::try_from_iter([
+  /// let mut items = ArrayDeque::<_, U16>::try_from_iter([
   ///     0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2,
   /// ]).unwrap();
-  /// let mut ones = GenericArrayDeque::<_, U16>::new();
+  /// let mut ones = ArrayDeque::<_, U16>::new();
   /// items.extract_if(7.., |x| *x == 1).for_each(|value| {
   ///     assert!(ones.push_back(value).is_none());
   /// });
   /// assert_eq!(
   ///     items,
-  ///     GenericArrayDeque::<_, U16>::try_from_iter([0, 0, 0, 0, 0, 0, 0, 2, 2, 2]).unwrap()
+  ///     ArrayDeque::<_, U16>::try_from_iter([0, 0, 0, 0, 0, 0, 0, 2, 2, 2]).unwrap()
   /// );
   /// assert_eq!(ones.len(), 3);
   /// ```
@@ -117,20 +117,20 @@ where
 
 /// An iterator which uses a closure to determine if an element should be removed.
 ///
-/// This struct is created by [`GenericArrayDeque::extract_if`].
+/// This struct is created by [`ArrayDeque::extract_if`].
 /// See its documentation for more.
 ///
 /// # Example
 ///
 /// ```
-/// use generic_arraydeque::{ExtractIf, GenericArrayDeque, typenum::U3};
+/// use generic_arraydeque::{ExtractIf, ArrayDeque, typenum::U3};
 ///
-/// let mut v = GenericArrayDeque::<_, U3>::try_from_array([0, 1, 2]).unwrap();
+/// let mut v = ArrayDeque::<_, U3>::try_from_array([0, 1, 2]).unwrap();
 /// let iter: ExtractIf<'_, _, _, U3> = v.extract_if(.., |x| *x % 2 == 0);
 /// ```
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct ExtractIf<'a, T, F, N: ArrayLength> {
-  vec: &'a mut GenericArrayDeque<T, N>,
+  vec: &'a mut ArrayDeque<T, N>,
   /// The index of the item that will be inspected by the next call to `next`.
   idx: usize,
   /// Elements at and beyond this point will be retained. Must be equal or smaller than `old_len`.
@@ -145,7 +145,7 @@ pub struct ExtractIf<'a, T, F, N: ArrayLength> {
 
 impl<'a, T, F, N: ArrayLength> ExtractIf<'a, T, F, N> {
   pub(super) fn new<R: RangeBounds<usize>>(
-    vec: &'a mut GenericArrayDeque<T, N>,
+    vec: &'a mut ArrayDeque<T, N>,
     pred: F,
     range: R,
   ) -> Self {

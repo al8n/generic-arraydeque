@@ -50,21 +50,21 @@ The API closely mirrors `std::collections::VecDeque` to provide familiarity, whi
 
 ### Why Type-Level Capacity Instead of Const Generics?
 
-While Rust's const generics (`const N: usize`) might seem like a natural choice for specifying capacity, `GenericArrayDeque` uses type-level numbers from the [`typenum`](https://docs.rs/typenum) crate instead. This design choice enables powerful compile-time patterns that aren't possible with const generics, particularly in trait definitions.
+While Rust's const generics (`const N: usize`) might seem like a natural choice for specifying capacity, `ArrayDeque` uses type-level numbers from the [`typenum`](https://docs.rs/typenum) crate instead. This design choice enables powerful compile-time patterns that aren't possible with const generics, particularly in trait definitions.
 
 **Real-World Example: Syntax Error Tracking**
 
 Consider a trait that defines syntax elements with compile-time known component counts:
 
 ```rust
-use generic_arraydeque::{GenericArrayDeque, typenum::{U2, U3}};
+use generic_arraydeque::{ArrayDeque, typenum::{U2, U3}};
 
 trait Syntax {
     type Component;
     type ComponentCount: generic_arraydeque::ArrayLength;
 
     // Each implementation can specify a different capacity at the type level
-    fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::ComponentCount>;
+    fn possible_components() -> &'static ArrayDeque<Self::Component, Self::ComponentCount>;
 }
 
 // An if-statement has 3 components
@@ -73,10 +73,10 @@ impl Syntax for IfStatement {
     type Component = &'static str;
     type ComponentCount = U3;  // Type-level 3
 
-    fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
+    fn possible_components() -> &'static ArrayDeque<Self::Component, U3> {
         // Can be initialized in const context
-        static COMPONENTS: GenericArrayDeque<&'static str, U3> = {
-            let mut deque = GenericArrayDeque::new();
+        static COMPONENTS: ArrayDeque<&'static str, U3> = {
+            let mut deque = ArrayDeque::new();
             // In a const context, populate the deque...
             deque
         };
@@ -90,9 +90,9 @@ impl Syntax for WhileLoop {
     type Component = &'static str;
     type ComponentCount = U2;  // Type-level 2
 
-    fn possible_components() -> &'static GenericArrayDeque<Self::Component, U2> {
-        static COMPONENTS: GenericArrayDeque<&'static str, U2> = {
-            let mut deque = GenericArrayDeque::new();
+    fn possible_components() -> &'static ArrayDeque<Self::Component, U2> {
+        static COMPONENTS: ArrayDeque<&'static str, U2> = {
+            let mut deque = ArrayDeque::new();
             deque
         };
         &COMPONENTS
@@ -137,7 +137,7 @@ generic-arraydeque = "0.3"
 - `zeroize`: Enable `Zeroize` support for secure memory clearing
 - `faster-hex`: Enable faster hex encoding/decoding
 
-## Why Use `GenericArrayDeque`?
+## Why Use `ArrayDeque`?
 
 - **Embedded Systems**: No heap allocation required, perfect for memory-constrained environments
 - **Real-Time Systems**: Predictable performance without allocator overhead
@@ -150,10 +150,10 @@ generic-arraydeque = "0.3"
 ### Basic Example
 
 ```rust
-use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+use generic_arraydeque::{ArrayDeque, typenum::U8};
 
 // Create a deque with capacity of 8 elements
-let mut deque = GenericArrayDeque::<u32, U8>::new();
+let mut deque = ArrayDeque::<u32, U8>::new();
 
 // Push elements to the back
 deque.push_back(1);
@@ -173,9 +173,9 @@ assert_eq!(deque.len(), 2);
 ### Working with Capacity
 
 ```rust
-use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+use generic_arraydeque::{ArrayDeque, typenum::U4};
 
-let mut deque = GenericArrayDeque::<i32, U4>::new();
+let mut deque = ArrayDeque::<i32, U4>::new();
 
 // Try to push - returns overflow value if full
 assert_eq!(deque.push_back(1), None);
@@ -196,27 +196,27 @@ assert!(deque.is_full());
 ### Creating from Iterators
 
 ```rust
-use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+use generic_arraydeque::{ArrayDeque, typenum::U4};
 
 // From an array
-let deque = GenericArrayDeque::<u32, U4>::try_from_array([1, 2, 3, 4]).unwrap();
+let deque = ArrayDeque::<u32, U4>::try_from_array([1, 2, 3, 4]).unwrap();
 assert_eq!(deque.len(), 4);
 
 // From an iterator
-let deque = GenericArrayDeque::<u32, U4>::try_from_iter(0..3).unwrap();
+let deque = ArrayDeque::<u32, U4>::try_from_iter(0..3).unwrap();
 assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![0, 1, 2]);
 
 // From an exact size iterator
-let deque = GenericArrayDeque::<u32, U4>::try_from_exact_iter(0..4).unwrap();
+let deque = ArrayDeque::<u32, U4>::try_from_exact_iter(0..4).unwrap();
 assert_eq!(deque.len(), 4);
 ```
 
 ### Iteration
 
 ```rust
-use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+use generic_arraydeque::{ArrayDeque, typenum::U4};
 
-let mut deque = GenericArrayDeque::<u32, U4>::try_from_iter(1..=4).unwrap();
+let mut deque = ArrayDeque::<u32, U4>::try_from_iter(1..=4).unwrap();
 
 // Iterate by reference
 for value in &deque {
@@ -237,9 +237,9 @@ for value in deque {
 ### Accessing Elements
 
 ```rust
-use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+use generic_arraydeque::{ArrayDeque, typenum::U4};
 
-let mut deque = GenericArrayDeque::<u32, U4>::try_from_iter(10..14).unwrap();
+let mut deque = ArrayDeque::<u32, U4>::try_from_iter(10..14).unwrap();
 
 // Index access
 assert_eq!(deque[0], 10);

@@ -7,9 +7,9 @@ use core::{
   ptr::{self, NonNull},
 };
 
-use super::{ArrayLength, GenericArrayDeque};
+use super::{ArrayDeque, ArrayLength};
 
-impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
+impl<T, N: ArrayLength> ArrayDeque<T, N> {
   /// Removes the specified range from the deque in bulk, returning all
   /// removed elements as an iterator. If the iterator is dropped before
   /// being fully consumed, it drops the remaining removed elements.
@@ -94,7 +94,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
 pub struct Drain<'a, T, N: ArrayLength> {
   // We can't just use a &mut VecDeque<T, N>, as that would make Drain invariant over T
   // and we want it to be covariant instead
-  deque: NonNull<GenericArrayDeque<T, N>>,
+  deque: NonNull<ArrayDeque<T, N>>,
   // drain_start is stored in deque.len
   drain_len: usize,
   // index into the logical array, not the physical one (always lies in [0..deque.len))
@@ -108,7 +108,7 @@ pub struct Drain<'a, T, N: ArrayLength> {
 
 impl<'a, T, N: ArrayLength> Drain<'a, T, N> {
   pub(super) unsafe fn new(
-    deque: &'a mut GenericArrayDeque<T, N>,
+    deque: &'a mut ArrayDeque<T, N>,
     drain_start: usize,
     drain_len: usize,
   ) -> Self {
@@ -268,7 +268,7 @@ impl<T, N: ArrayLength> Drop for Drain<'_, T, N> {
           // See `tests/codegen-llvm/vecdeque-drain.rs` for a test.
           #[cold]
           fn join_head_and_tail_wrapping<T, N: ArrayLength>(
-            source_deque: &mut GenericArrayDeque<T, N>,
+            source_deque: &mut ArrayDeque<T, N>,
             drain_len: usize,
             head_len: usize,
             tail_len: usize,

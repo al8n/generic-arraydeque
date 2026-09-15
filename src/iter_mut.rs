@@ -1,11 +1,11 @@
 use core::{fmt, iter::FusedIterator, mem, slice};
 
-/// A mutable iterator over the elements of a [`GenericArrayDeque`](crate::GenericArrayDeque).
+/// A mutable iterator over the elements of a [`ArrayDeque`](crate::ArrayDeque).
 ///
-/// This `struct` is created by the [`iter_mut`] method on [`super::GenericArrayDeque`]. See its
+/// This `struct` is created by the [`iter_mut`] method on [`super::ArrayDeque`]. See its
 /// documentation for more.
 ///
-/// [`iter_mut`]: super::GenericArrayDeque::iter_mut
+/// [`iter_mut`]: super::ArrayDeque::iter_mut
 pub struct IterMut<'a, T> {
   i1: slice::IterMut<'a, T>,
   i2: slice::IterMut<'a, T>,
@@ -27,9 +27,9 @@ impl<'a, T> IterMut<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U6};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U6};
   ///
-  /// let mut deque = GenericArrayDeque::<u32, U6>::new();
+  /// let mut deque = ArrayDeque::<u32, U6>::new();
   /// for value in 0..5 {
   ///     assert!(deque.push_back(value).is_none());
   /// }
@@ -60,9 +60,9 @@ impl<'a, T> IterMut<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U4};
   ///
-  /// let mut deque = GenericArrayDeque::<u32, U4>::new();
+  /// let mut deque = ArrayDeque::<u32, U4>::new();
   /// for value in 0..3 {
   ///     assert!(deque.push_back(value).is_none());
   /// }
@@ -178,11 +178,11 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-  use crate::{GenericArrayDeque, typenum::U5};
+  use crate::{ArrayDeque, typenum::U5};
 
   #[test]
   fn into_slices_allows_mutation() {
-    let mut deque = GenericArrayDeque::<_, U5>::new();
+    let mut deque = ArrayDeque::<_, U5>::new();
     for value in 0..5 {
       assert!(deque.push_back(value).is_none());
     }
@@ -206,7 +206,7 @@ mod tests {
 
   #[test]
   fn as_slices_reflect_remaining_segments() {
-    let mut deque = GenericArrayDeque::<_, U5>::new();
+    let mut deque = ArrayDeque::<_, U5>::new();
     for value in 0..5 {
       assert!(deque.push_back(value).is_none());
     }
@@ -222,7 +222,7 @@ mod tests {
 
   #[test]
   fn fold_and_rfold_visit_all_items() {
-    let mut deque = GenericArrayDeque::<_, U5>::new();
+    let mut deque = ArrayDeque::<_, U5>::new();
     for value in 0..5 {
       assert!(deque.push_back(value).is_none());
     }
@@ -238,7 +238,7 @@ mod tests {
 
   #[test]
   fn size_hint_tracks_progress() {
-    let mut deque = GenericArrayDeque::<_, U5>::new();
+    let mut deque = ArrayDeque::<_, U5>::new();
     for value in 0..5 {
       assert!(deque.push_back(value).is_none());
     }
@@ -252,7 +252,7 @@ mod tests {
 
   #[test]
   fn last_allows_mutating_tail() {
-    let mut deque = GenericArrayDeque::<_, U5>::new();
+    let mut deque = ArrayDeque::<_, U5>::new();
     for value in 0..5 {
       assert!(deque.push_back(value).is_none());
     }

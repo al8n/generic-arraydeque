@@ -4,7 +4,7 @@ pub use extract_if::ExtractIf;
 
 mod extract_if;
 
-impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
+impl<T, N: ArrayLength> ArrayDeque<T, N> {
   /// Removes and returns the first element from the deque if the predicate
   /// returns `true`, or [`None`] if the predicate returns false or the deque
   /// is empty (the predicate will not be called in that case).
@@ -12,9 +12,9 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayDeque::<i32, U8>::new();
+  /// let mut deque = ArrayDeque::<i32, U8>::new();
   /// for value in 0..5 {
   ///     assert!(deque.push_back(value).is_none());
   /// }
@@ -41,9 +41,9 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayDeque::<i32, U8>::new();
+  /// let mut deque = ArrayDeque::<i32, U8>::new();
   /// for value in 0..5 {
   ///     assert!(deque.push_back(value).is_none());
   /// }
@@ -70,9 +70,9 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
+  /// let mut deque: ArrayDeque<u32, U2> = ArrayDeque::new();
   /// let elem_ref = deque.push_back_mut(10).unwrap();
   /// *elem_ref += 5;
   /// assert_eq!(*deque.get(0).unwrap(), 15);
@@ -95,9 +95,9 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U2};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U2};
   ///
-  /// let mut deque: GenericArrayDeque<u32, U2> = GenericArrayDeque::new();
+  /// let mut deque: ArrayDeque<u32, U2> = ArrayDeque::new();
   /// let elem_ref = deque.push_front_mut(10).unwrap();
   /// *elem_ref += 5;
   /// assert_eq!(*deque.get(0).unwrap(), 15);
@@ -122,9 +122,9 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U4};
   ///
-  /// let mut buf = GenericArrayDeque::<u32, U4>::new();
+  /// let mut buf = ArrayDeque::<u32, U4>::new();
   /// assert!(buf.push_front(5).is_none());
   /// assert!(buf.push_front(10).is_none());
   /// assert!(buf.push_front(15).is_none());
@@ -189,14 +189,14 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   /// ## Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U8};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U8};
   ///
-  /// let mut deque = GenericArrayDeque::<i32, U8>::try_from_iter([1, 2, 3]).unwrap();
+  /// let mut deque = ArrayDeque::<i32, U8>::try_from_iter([1, 2, 3]).unwrap();
   /// let x = deque.insert_mut(1, 5).unwrap();
   /// *x += 7;
   /// assert_eq!(deque.into_iter().collect::<Vec<_>>(), vec![1, 12, 2, 3]);
   /// ```
-  #[must_use = "if you don't need a reference to the value, use `GenericArrayDeque::insert` instead"]
+  #[must_use = "if you don't need a reference to the value, use `ArrayDeque::insert` instead"]
   pub const fn insert_mut(&mut self, index: usize, value: T) -> Result<&mut T, T> {
     if index > self.len() || self.is_full() {
       return Err(value);
@@ -206,7 +206,7 @@ impl<T, N: ArrayLength> GenericArrayDeque<T, N> {
   }
 }
 
-impl<T: Clone, N: ArrayLength> GenericArrayDeque<T, N> {
+impl<T: Clone, N: ArrayLength> ArrayDeque<T, N> {
   /// Clones the elements at the range `src` and appends them to the end.
   ///
   /// # Panics
@@ -217,17 +217,17 @@ impl<T: Clone, N: ArrayLength> GenericArrayDeque<T, N> {
   /// # Examples
   ///
   /// ```
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U20};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U20};
   ///
-  /// let mut characters = GenericArrayDeque::<_, U20>::try_from_exact_iter(['a', 'b', 'c', 'd', 'e']).unwrap();
+  /// let mut characters = ArrayDeque::<_, U20>::try_from_exact_iter(['a', 'b', 'c', 'd', 'e']).unwrap();
   /// characters.extend_from_within(2..);
   /// assert_eq!(characters, ['a', 'b', 'c', 'd', 'e', 'c', 'd', 'e']);
   ///
-  /// let mut numbers = GenericArrayDeque::<_, U20>::try_from_exact_iter([0, 1, 2, 3, 4]).unwrap();
+  /// let mut numbers = ArrayDeque::<_, U20>::try_from_exact_iter([0, 1, 2, 3, 4]).unwrap();
   /// numbers.extend_from_within(..2);
   /// assert_eq!(numbers, [0, 1, 2, 3, 4, 0, 1]);
   ///
-  /// let mut strings = GenericArrayDeque::<_, U20>::try_from_exact_iter([String::from("hello"), String::from("world"), String::from("!")]).unwrap();
+  /// let mut strings = ArrayDeque::<_, U20>::try_from_exact_iter([String::from("hello"), String::from("world"), String::from("!")]).unwrap();
   /// strings.extend_from_within(1..=2);
   /// assert_eq!(strings, ["hello", "world", "!", "world", "!"]);
   /// ```
@@ -262,17 +262,17 @@ impl<T: Clone, N: ArrayLength> GenericArrayDeque<T, N> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use generic_arraydeque::{GenericArrayDeque, typenum::U20};
+  /// use generic_arraydeque::{ArrayDeque, typenum::U20};
   ///
-  /// let mut characters = GenericArrayDeque::<_, U20>::try_from_exact_iter(['a'.to_string(), 'b'.to_string(), 'c'.to_string(), 'd'.to_string(), 'e'.to_string()]).unwrap();
+  /// let mut characters = ArrayDeque::<_, U20>::try_from_exact_iter(['a'.to_string(), 'b'.to_string(), 'c'.to_string(), 'd'.to_string(), 'e'.to_string()]).unwrap();
   /// characters.prepend_from_within(2..);
   /// assert_eq!(characters, ['c'.to_string(), 'd'.to_string(), 'e'.to_string(), 'a'.to_string(), 'b'.to_string(), 'c'.to_string(), 'd'.to_string(), 'e'.to_string()]);
   ///
-  /// let mut numbers = GenericArrayDeque::<_, U20>::try_from_exact_iter(["0".to_string(), "1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()]).unwrap();
+  /// let mut numbers = ArrayDeque::<_, U20>::try_from_exact_iter(["0".to_string(), "1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()]).unwrap();
   /// numbers.prepend_from_within(..2);
   /// assert_eq!(numbers, ["0".to_string(), "1".to_string(), "0".to_string(), "1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()]);
   ///
-  /// let mut strings = GenericArrayDeque::<_, U20>::try_from_exact_iter([String::from("hello"), String::from("world"), String::from("!")]).unwrap();
+  /// let mut strings = ArrayDeque::<_, U20>::try_from_exact_iter([String::from("hello"), String::from("world"), String::from("!")]).unwrap();
   /// strings.prepend_from_within(1..=2);
   /// assert_eq!(strings, ["world", "!", "hello", "world", "!"]);
   /// # }

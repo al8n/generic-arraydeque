@@ -5,9 +5,9 @@ use serde_core::{
   de::{Error, SeqAccess, Visitor},
 };
 
-use super::{ArrayLength, GenericArrayDeque};
+use super::{ArrayDeque, ArrayLength};
 
-impl<T: Serialize, N: ArrayLength> Serialize for GenericArrayDeque<T, N> {
+impl<T: Serialize, N: ArrayLength> Serialize for ArrayDeque<T, N> {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
     S: Serializer,
@@ -16,7 +16,7 @@ impl<T: Serialize, N: ArrayLength> Serialize for GenericArrayDeque<T, N> {
   }
 }
 
-impl<'de, T: Deserialize<'de>, N: ArrayLength> Deserialize<'de> for GenericArrayDeque<T, N> {
+impl<'de, T: Deserialize<'de>, N: ArrayLength> Deserialize<'de> for ArrayDeque<T, N> {
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
   where
     D: Deserializer<'de>,
@@ -29,7 +29,7 @@ impl<'de, T: Deserialize<'de>, N: ArrayLength> Deserialize<'de> for GenericArray
     where
       T: Deserialize<'de>,
     {
-      type Value = GenericArrayDeque<T, N>;
+      type Value = ArrayDeque<T, N>;
 
       fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a sequence")
@@ -40,7 +40,7 @@ impl<'de, T: Deserialize<'de>, N: ArrayLength> Deserialize<'de> for GenericArray
       where
         A: SeqAccess<'de>,
       {
-        let mut values = GenericArrayDeque::<T, N>::new();
+        let mut values = ArrayDeque::<T, N>::new();
 
         while let Some(value) = seq.next_element()? {
           if values.push_back(value).is_some() {
@@ -62,7 +62,7 @@ impl<'de, T: Deserialize<'de>, N: ArrayLength> Deserialize<'de> for GenericArray
   where
     D: Deserializer<'de>,
   {
-    struct SeqInPlaceVisitor<'a, T, N: ArrayLength>(&'a mut GenericArrayDeque<T, N>);
+    struct SeqInPlaceVisitor<'a, T, N: ArrayLength>(&'a mut ArrayDeque<T, N>);
 
     impl<'de, T, N: ArrayLength> Visitor<'de> for SeqInPlaceVisitor<'_, T, N>
     where

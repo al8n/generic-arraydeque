@@ -1,4 +1,4 @@
-use crate::{GenericArrayDeque, typenum::U8};
+use crate::{ArrayDeque, typenum::U8};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 static DROP_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -14,7 +14,7 @@ impl Drop for DropSpy {
 
 #[test]
 fn drain_removes_requested_range() {
-  let mut deque = GenericArrayDeque::<_, U8>::new();
+  let mut deque = ArrayDeque::<_, U8>::new();
   for value in 0..6 {
     assert!(deque.push_back(value).is_none());
   }
@@ -35,7 +35,7 @@ fn drain_removes_requested_range() {
 
 #[test]
 fn drain_iterator_supports_double_ended_iteration() {
-  let mut deque = GenericArrayDeque::<_, U8>::new();
+  let mut deque = ArrayDeque::<_, U8>::new();
   for value in 0..5 {
     assert!(deque.push_back(value).is_none());
   }
@@ -55,7 +55,7 @@ fn drain_iterator_supports_double_ended_iteration() {
 fn dropping_drain_drops_remaining_elements() {
   DROP_COUNTER.store(0, Ordering::SeqCst);
   {
-    let mut deque = GenericArrayDeque::<_, U8>::new();
+    let mut deque = ArrayDeque::<_, U8>::new();
     for _ in 0..4 {
       assert!(deque.push_back(DropSpy).is_none());
     }
