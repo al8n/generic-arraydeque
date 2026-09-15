@@ -139,29 +139,9 @@ jobs:
             args: "--each-feature"
             cargo_hack: latest
           - os: ubuntu-latest
-            toolchain: 1.79.0
-            args: "--each-feature"
-            cargo_hack: 0.6.5
-          - os: ubuntu-latest
-            toolchain: 1.80.0
-            args: "--each-feature"
-            cargo_hack: 0.6.5
-          - os: ubuntu-latest
-            toolchain: 1.83.0
-            args: "--each-feature"
-            cargo_hack: latest
-          - os: ubuntu-latest
             toolchain: 1.85.0
             args: "--each-feature"
             cargo_hack: latest
-          # - os: ubuntu-latest
-          #   toolchain: 1.92.0
-          #   args: "--each-feature"
-          #   cargo_hack: latest
-          - os: ubuntu-latest
-            toolchain: 1.65.0
-            args: "--each-feature"
-            cargo_hack: 0.6.5
           - os: macos-latest
             toolchain: stable
             args: "--each-feature"
@@ -208,29 +188,9 @@ jobs:
             args: "--each-feature"
             cargo_hack: latest
           - os: ubuntu-latest
-            toolchain: 1.79.0
-            args: "--each-feature"
-            cargo_hack: 0.6.5
-          - os: ubuntu-latest
-            toolchain: 1.80.0
-            args: "--each-feature"
-            cargo_hack: 0.6.5
-          - os: ubuntu-latest
-            toolchain: 1.83.0
-            args: "--each-feature"
-            cargo_hack: latest
-          - os: ubuntu-latest
             toolchain: 1.85.0
             args: "--each-feature"
             cargo_hack: latest
-          # - os: ubuntu-latest
-          #   toolchain: 1.92.0
-          #   args: "--each-feature"
-          #   cargo_hack: latest
-          - os: ubuntu-latest
-            toolchain: 1.65.0
-            args: "--each-feature"
-            cargo_hack: 0.6.5
           - os: macos-latest
             toolchain: stable
             args: "--each-feature"
@@ -305,11 +265,8 @@ jobs:
           - macos-latest
         toolchain:
           - nightly
-          - 1.65.0
-          - 1.79.0
-          - 1.83.0
           - 1.85.0
-          # - 1.92.0
+          - 1.92.0
         target:
           - x86_64-unknown-linux-gnu
           - i686-unknown-linux-gnu
@@ -321,15 +278,9 @@ jobs:
         # Exclude invalid combinations
         exclude:
           - os: macos-latest
-            toolchain: 1.79.0
-          - os: macos-latest
-            toolchain: 1.83.0
-          - os: macos-latest
             toolchain: 1.85.0
           - os: macos-latest
-            toolchain: 1.65.0
-          # - os: macos-latest
-          #   toolchain: 1.92.0
+            toolchain: 1.92.0
           - os: ubuntu-latest
             target: x86_64-apple-darwin
           - os: ubuntu-latest
@@ -370,11 +321,8 @@ jobs:
           - macos-latest
         toolchain:
           - nightly
-          - 1.65.0
-          - 1.79.0
-          - 1.83.0
           - 1.85.0
-          # # - 1.92.0
+          - 1.92.0
         target:
           - x86_64-unknown-linux-gnu
           - i686-unknown-linux-gnu
@@ -386,15 +334,9 @@ jobs:
         # Exclude invalid combinations
         exclude:
           - os: macos-latest
-            toolchain: 1.79.0
-          - os: macos-latest
-            toolchain: 1.83.0
-          - os: macos-latest
             toolchain: 1.85.0
           - os: macos-latest
-            toolchain: 1.65.0
-          # - os: macos-latest
-          #   toolchain: 1.92.0
+            toolchain: 1.92.0
           - os: ubuntu-latest
             target: x86_64-apple-darwin
           - os: ubuntu-latest
