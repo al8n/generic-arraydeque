@@ -1,4 +1,4 @@
-use crate::{typenum::U8, GenericArrayDeque};
+use crate::{GenericArrayDeque, typenum::U8};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 static DROP_COUNTER: AtomicUsize = AtomicUsize::new(0);

@@ -435,7 +435,9 @@ fn make_contiguous_small_free() {
 
   assert_eq!(
     tester,
-    ['M', 'L', 'K', 'J', 'I', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    [
+      'M', 'L', 'K', 'J', 'I', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'
+    ]
   );
 
   // ABCDEFGH...MLKJI
@@ -444,7 +446,9 @@ fn make_contiguous_small_free() {
   assert_eq!(tester.head, expected_start);
   assert_eq!(
     (
-      &['M', 'L', 'K', 'J', 'I', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as &[_],
+      &[
+        'M', 'L', 'K', 'J', 'I', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'
+      ] as &[_],
       &[] as &[_]
     ),
     tester.as_slices()
@@ -465,7 +469,9 @@ fn make_contiguous_small_free() {
   assert_eq!(tester.head, expected_start);
   assert_eq!(
     (
-      &['H', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'I', 'J', 'K', 'L', 'M'] as &[_],
+      &[
+        'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'I', 'J', 'K', 'L', 'M'
+      ] as &[_],
       &[] as &[_]
     ),
     tester.as_slices()
@@ -486,7 +492,9 @@ fn make_contiguous_head_to_end() {
 
   assert_eq!(
     tester,
-    ['P', 'O', 'N', 'M', 'L', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
+    [
+      'P', 'O', 'N', 'M', 'L', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'
+    ]
   );
 
   // ABCDEFGHIJKPONML
@@ -495,7 +503,9 @@ fn make_contiguous_head_to_end() {
   assert_eq!(tester.head, expected_start);
   assert_eq!(
     (
-      &['P', 'O', 'N', 'M', 'L', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'] as &[_],
+      &[
+        'P', 'O', 'N', 'M', 'L', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'
+      ] as &[_],
       &[] as &[_]
     ),
     tester.as_slices()
@@ -516,7 +526,9 @@ fn make_contiguous_head_to_end() {
   assert_eq!(tester.head, expected_start);
   assert_eq!(
     (
-      &['K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'L', 'M', 'N', 'O', 'P'] as &[_],
+      &[
+        'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'L', 'M', 'N', 'O', 'P'
+      ] as &[_],
       &[] as &[_]
     ),
     tester.as_slices()
@@ -790,12 +802,14 @@ impl ExactSizeIterator for LyingExactSize {
 #[test]
 fn try_extend_from_exact_iter_bounds_by_capacity() {
   let mut deque = GenericArrayDeque::<i32, U4>::new();
-  assert!(deque
-    .try_extend_from_exact_iter(LyingExactSize {
-      remaining: 8,
-      advertised: 0,
-    })
-    .is_none());
+  assert!(
+    deque
+      .try_extend_from_exact_iter(LyingExactSize {
+        remaining: 8,
+        advertised: 0,
+      })
+      .is_none()
+  );
   assert!(deque.len() <= deque.capacity());
   assert_eq!(deque.len(), 4);
 }
@@ -1089,7 +1103,7 @@ fn issue_80303() {
 
   impl Hasher for SimpleHasher {
     fn finish(&self) -> u64 {
-      self.0 .0
+      self.0.0
     }
 
     fn write(&mut self, bytes: &[u8]) {
@@ -1253,7 +1267,9 @@ fn extract_if_non_contiguous() {
   assert!(!list.is_contiguous());
   assert_eq!(
     list,
-    [6, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 29, 31, 33, 34, 35, 36, 37, 39, 1, 2, 4]
+    [
+      6, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 29, 31, 33, 34, 35, 36, 37, 39, 1, 2, 4
+    ]
   );
 
   let removed = list.extract_if(.., |x| *x % 2 == 0).collect::<Vec<_>>();
@@ -1356,7 +1372,7 @@ fn extract_if_complex() {
 #[cfg_attr(not(panic = "unwind"), ignore = "test requires unwinding support")]
 fn extract_if_drop_panic_leak() {
   use core::sync::atomic::{AtomicUsize, Ordering::SeqCst};
-  use std::panic::{catch_unwind, AssertUnwindSafe};
+  use std::panic::{AssertUnwindSafe, catch_unwind};
 
   /// A blueprint for crash test dummy instances that monitor particular events.
   /// Some instances may be configured to panic at some point.
@@ -1526,7 +1542,7 @@ fn extract_if_drop_panic_leak() {
 #[test]
 #[cfg_attr(not(panic = "unwind"), ignore = "test requires unwinding support")]
 fn extract_if_pred_panic_leak() {
-  use std::panic::{catch_unwind, AssertUnwindSafe};
+  use std::panic::{AssertUnwindSafe, catch_unwind};
   struct_with_counted_drop!(D(u32), DROPS);
 
   let mut q = GenericArrayDeque::<D, U8>::new();

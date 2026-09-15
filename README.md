@@ -116,7 +116,7 @@ This pattern is used in production code for parsing error tracking, where syntax
 
 ```toml
 [dependencies]
-generic-arraydeque = "0.2"
+generic-arraydeque = "0.3"
 ```
 
 ## Feature Flags

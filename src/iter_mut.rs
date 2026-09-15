@@ -178,7 +178,7 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-  use crate::{typenum::U5, GenericArrayDeque};
+  use crate::{GenericArrayDeque, typenum::U5};
 
   #[test]
   fn into_slices_allows_mutation() {

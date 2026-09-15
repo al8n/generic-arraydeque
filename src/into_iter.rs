@@ -74,8 +74,8 @@ impl<T, N: ArrayLength> FusedIterator for IntoIter<T, N> {}
 mod tests {
   use super::IntoIter;
   use crate::{
-    typenum::{U4, U8},
     GenericArrayDeque,
+    typenum::{U4, U8},
   };
 
   #[test]

@@ -4,9 +4,8 @@ codecov:
 ignore:
   - examples/*
   - benches/*
-  - tests/*
+  - "**/tests/*"
   - src/tests.rs
-  - src/heap_tests.rs
 
 coverage:
   status:

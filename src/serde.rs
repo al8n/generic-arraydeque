@@ -1,8 +1,8 @@
 use core::{fmt, marker::PhantomData};
 
 use serde_core::{
-  de::{Error, SeqAccess, Visitor},
   Deserialize, Deserializer, Serialize, Serializer,
+  de::{Error, SeqAccess, Visitor},
 };
 
 use super::{ArrayLength, GenericArrayDeque};

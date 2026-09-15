@@ -14,7 +14,7 @@ use core::{
   cmp::Ordering,
   fmt,
   hash::{Hash, Hasher},
-  iter::{once, repeat_with, Chain, Once},
+  iter::{Chain, Once, once, repeat_with},
   mem::{self, ManuallyDrop, MaybeUninit},
   ops::{self, Index, IndexMut, Range, RangeBounds},
   ptr, slice,
@@ -22,7 +22,7 @@ use core::{
 use generic_array::GenericArray;
 use macros::*;
 
-pub use generic_array::{typenum, ArrayLength, ConstArrayLength, IntoArrayLength};
+pub use generic_array::{ArrayLength, ConstArrayLength, IntoArrayLength, typenum};
 pub use into_iter::IntoIter;
 pub use iter::Iter;
 pub use iter_mut::IterMut;
@@ -3055,5 +3055,7 @@ fn repeat_n<T: Clone>(element: T, count: usize) -> impl Iterator<Item = T> {
 
 #[inline(always)]
 const unsafe fn assert_unchecked(cond: bool) {
-  core::hint::assert_unchecked(cond);
+  unsafe {
+    core::hint::assert_unchecked(cond);
+  }
 }

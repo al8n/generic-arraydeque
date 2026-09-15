@@ -19,22 +19,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-# Matrix dimensions covered for Codecov to reflect the per-toolchain split of
-# the crate's `rustversion`-gated impls:
-#
-# - rust-stable:   exercises every `#[rustversion::since(X)]` arm — the modern
-#                  codepaths the crate uses on current Rust.
-# - rust-1.78:     exercises every `#[rustversion::before(X)]` arm — the
-#                  compatibility fallbacks the crate ships for Rust < 1.79 /
-#                  1.80 / 1.82 / 1.83 / 1.85. 1.78 is below every `before`
-#                  boundary, so a single 1.78 run covers all of them at once.
-#
-# Codecov merges the two reports via flags, so each `since`/`before` pair
-# ends up covered by whichever host compiles it.
-#
-# `--all-features` on each host covers every feature-gated module
-# (`std`, `alloc`, `unstable`, `serde`, `zeroize`, `faster-hex`).
-
 jobs:
   coverage:
     name: coverage (${{ matrix.label }})

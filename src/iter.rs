@@ -147,7 +147,7 @@ impl<T> FusedIterator for Iter<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-  use crate::{typenum::U4, GenericArrayDeque};
+  use crate::{GenericArrayDeque, typenum::U4};
 
   #[test]
   fn as_slices_reflect_wrapping_layout() {

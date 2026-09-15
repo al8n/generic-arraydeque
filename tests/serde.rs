@@ -1,7 +1,7 @@
 #![cfg(feature = "serde")]
 
-use generic_arraydeque::{typenum::U4, GenericArrayDeque};
-use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
+use generic_arraydeque::{GenericArrayDeque, typenum::U4};
+use serde_test::{Token, assert_de_tokens, assert_de_tokens_error, assert_tokens};
 
 #[test]
 fn serialize_roundtrip() {
